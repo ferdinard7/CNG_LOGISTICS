@@ -1,0 +1,93 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CONSUMER
+  RIDER
+  TRUCK_DRIVER
+  WASTE_DRIVER
+  ADMIN
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String    @unique
+  phone        String    @unique
+  passwordHash String
+
+  role         UserRole  @default(CONSUMER)
+  kycStatus    KycStatus @default(NOT_SUBMITTED)
+
+  isActive     Boolean   @default(true)
+  isOnline     Boolean   @default(false)
+  lastLoginAt  DateTime?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  refreshTokens RefreshToken[]
+  kycProfile    KycProfile?
+
+  @@index([role])
+  @@index([kycStatus])
+}
+
+model RefreshToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model KycProfile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  status          KycStatus @default(NOT_SUBMITTED)
+
+  idType          String?
+  idNumber        String?
+  licenseNumber   String?
+  vehicleType     String?
+  vehiclePlateNo  String?
+
+  idDocUrl        String?
+  licenseDocUrl   String?
+  vehicleDocUrl   String?
+
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
