@@ -11,7 +11,6 @@ import {
 } from "../utils/token.js";
 import { env } from "../config/env.js";
 
-const DRIVER_ROLES = new Set(["RIDER", "TRUCK_DRIVER", "WASTE_DRIVER"]);
 
 const sanitizeUser = (user) => {
   const { passwordHash, ...rest } = user;
@@ -38,6 +37,7 @@ const clearRefreshCookie = (res) => {
     sameSite: isProd ? "none" : "lax",
   });
 };
+const DRIVER_ROLES = new Set(["RIDER", "TRUCK_DRIVER", "WASTE_DRIVER"]);
 
 export const register = async (req, res) => {
   try {
@@ -67,6 +67,8 @@ export const register = async (req, res) => {
 
     const passwordHash = await hashPassword(password);
 
+    const isDriver = DRIVER_ROLES.has(role);
+
     const user = await prisma.user.create({
       data: {
         firstName,
@@ -74,8 +76,16 @@ export const register = async (req, res) => {
         email,
         phone,
         role,
-        kycStatus: DRIVER_ROLES.has(role) ? "NOT_SUBMITTED" : "NOT_SUBMITTED",
-        kycProfile: DRIVER_ROLES.has(role) ? { create: { status: "NOT_SUBMITTED" } } : undefined,
+        passwordHash,
+        ...(isDriver
+          ? {
+              kycProfile: {
+                create: {
+                  status: "NOT_SUBMITTED",
+                },
+              },
+            }
+          : {}),
       },
     });
 
