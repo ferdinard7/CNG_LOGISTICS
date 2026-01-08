@@ -7,6 +7,8 @@ import cookieParser from "cookie-parser";
 import logger from "./config/logger.js";
 
 import authRoutes from "./route/auth.route.js";
+import kycRoutes from "./route/kyc.route.js";
+import adminKycRoutes from "./route/admin.kyc.route.js";
 import { swaggerDocs } from "./utils/swagger.js";
 
 const app = express();
@@ -41,6 +43,8 @@ swaggerDocs(app, env.port);
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/kyc", kycRoutes);
+app.use("/api/admin/kyc", adminKycRoutes);
 
 // ❌ 404 LAST — always
 app.use((req, res) => {

@@ -49,6 +49,9 @@ model User {
   refreshTokens RefreshToken[]
   kycProfile    KycProfile?
 
+  customerOrders Order[] @relation("CustomerOrders")
+  driverOrders   Order[] @relation("DriverOrders")
+
   @@index([role])
   @@index([kycStatus])
 }
@@ -67,20 +70,43 @@ model RefreshToken {
   @@index([expiresAt])
 }
 
+enum PremblyStatus {
+  NOT_STARTED
+  VERIFIED
+  FAILED
+}
+
 model KycProfile {
-  id              String    @id @default(cuid())
-  userId          String    @unique
-  status          KycStatus @default(NOT_SUBMITTED)
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  status          KycStatus    @default(NOT_SUBMITTED)
 
-  idType          String?
-  idNumber        String?
-  licenseNumber   String?
-  vehicleType     String?
-  vehiclePlateNo  String?
+  // Rider fields
+  nin             String?
+  motorcycleType  String?
+  motorcycleMake  String?
+  motorcycleModel String?
+  motorcycleYear  Int?
+  motorcyclePlate String?
 
-  idDocUrl        String?
-  licenseDocUrl   String?
-  vehicleDocUrl   String?
+  // Truck driver fields
+  driversLicenseNumber String?
+  vehicleMake          String?
+  vehicleModel         String?
+  vehicleYear          Int?
+  vehiclePlate         String?
+
+  // Document URLs
+  ninDocUrl            String?
+  motorcycleRegDocUrl  String?
+  driversLicenseDocUrl String?
+  vehicleRegDocUrl     String?
+
+  // Prembly tracking
+  premblyStatus        PremblyStatus @default(NOT_STARTED)
+  premblyReference     String?
+  premblyPayload       Json?          // store request payload
+  premblyResponse      Json?          // store response for audit
 
   reviewedById    String?
   reviewedAt      DateTime?
@@ -90,4 +116,41 @@ model KycProfile {
   updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum ServiceType {
+  DISPATCH
+  PARK_N_GO
+  WASTE_PICKUP
+  RIDE_BOOKING
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderCode     String      @unique
+  serviceType   ServiceType
+  status        OrderStatus @default(PENDING)
+
+  amount        Decimal     @default(0.0) @db.Decimal(12, 2)
+  currency      String      @default("NGN")
+
+  customerId    String
+  driverId      String?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  customer      User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  driver        User?       @relation("DriverOrders", fields: [driverId], references: [id])
+
+  @@index([serviceType])
+  @@index([status])
+  @@index([createdAt])
 }

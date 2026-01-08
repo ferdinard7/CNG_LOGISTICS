@@ -27,3 +27,14 @@ export const authenticate = async (req, res, next) => {
     return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
   }
 };
+
+
+export const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "ADMIN") {
+    return res.status(StatusCodes.FORBIDDEN).json({
+      success: false,
+      message: "Admin access required",
+    });
+  }
+  next();
+};
