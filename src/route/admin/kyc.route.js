@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { authenticate, requireAdmin } from "../middleware/authenticate.js";
+import { authenticate, requireAdmin } from "../../middleware/authenticate.js";
 import {
   adminListKycRequests,
   adminGetKycRequest,
   adminApproveKyc,
   adminRejectKyc,
-} from "../controller/admin.kyc.controller.js";
+} from "../../controller/admin.kyc.controller.js";
 
 const router = Router();
 

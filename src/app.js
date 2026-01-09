@@ -8,9 +8,11 @@ import logger from "./config/logger.js";
 
 import authRoutes from "./route/auth.route.js";
 import kycRoutes from "./route/kyc.route.js";
-import adminKycRoutes from "./route/admin.kyc.route.js";
-import { swaggerDocs } from "./utils/swagger.js";
-
+import adminKycRoutes from "./route/admin/kyc.route.js";
+import adminRoutes from "./route/admin/index.js";
+import riderRoutes from "./route/rider/index.js";
+import customerOrderRoutes from "./route/customer/orders.route.js";
+import { swaggerDocs } from './utils/swagger.js';
 const app = express();
 
 // CORS (cookies support)
@@ -44,7 +46,10 @@ swaggerDocs(app, env.port);
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/kyc", kycRoutes);
+app.use("/api/rider", riderRoutes);
+app.use("/api/customer/orders", customerOrderRoutes);
 app.use("/api/admin/kyc", adminKycRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ❌ 404 LAST — always
 app.use((req, res) => {

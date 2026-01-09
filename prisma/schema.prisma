@@ -43,6 +43,10 @@ model User {
   isOnline     Boolean   @default(false)
   lastLoginAt  DateTime?
 
+  lastLat Float?
+  lastLng Float?
+  lastLocationUpdatedAt DateTime?
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -126,8 +130,9 @@ enum ServiceType {
 }
 
 enum OrderStatus {
-  PENDING
-  IN_PROGRESS
+  PENDING        // created, not yet assigned
+  ASSIGNED       // assigned to a driver/rider (accepted or admin assigned)
+  IN_PROGRESS    // rider started movement
   COMPLETED
   CANCELLED
 }
@@ -143,6 +148,24 @@ model Order {
 
   customerId    String
   driverId      String?
+
+  pickupAddress   String?
+  deliveryAddress String?
+  pickupLat       Float?
+  pickupLng       Float?
+  deliveryLat     Float?
+  deliveryLng     Float?
+
+  metadata      Json?       // 👈 IMPORTANT (dispatch / parkngo / waste)
+
+  acceptedAt      DateTime?
+  completedAt     DateTime?
+
+  tipAmount       Decimal? @default(0.0)
+
+  // optional: distance + eta if you want to store server-side
+  distanceKm      Float?
+  etaMinutes      Int?
 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt

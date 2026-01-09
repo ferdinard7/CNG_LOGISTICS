@@ -7,9 +7,9 @@ export const adminListKycRequests = async (req, res) => {
     const { status = "PENDING", role, page = 1, limit = 20 } = req.query;
 
     const where = {
-      status,
-      user: role ? { role } : undefined,
-    };
+    status,
+     ...(role ? { user: { is: { role } } } : {}),
+      };
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -175,3 +175,5 @@ export const adminRejectKyc = async (req, res) => {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
   }
 };
+
+
