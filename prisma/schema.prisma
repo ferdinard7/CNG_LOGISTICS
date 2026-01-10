@@ -177,3 +177,15 @@ model Order {
   @@index([status])
   @@index([createdAt])
 }
+
+enum DispatchPackageSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum DispatchUrgency {
+  STANDARD
+  EXPRESS
+  SAME_DAY
+}

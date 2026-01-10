@@ -4,6 +4,8 @@ import {
   createDispatchOrder,
   createParkNgoOrder,
   createWastePickupOrder,
+  getOrderDetails,
+  estimateDispatchOrder
 } from "../../controller/customer/orders.controller.js";
 
 const router = Router();
@@ -11,5 +13,9 @@ const router = Router();
 router.post("/dispatch", authenticate, createDispatchOrder);
 router.post("/park-n-go", authenticate, createParkNgoOrder);
 router.post("/waste-pickup", authenticate, createWastePickupOrder);
+// GET /api/orders/:orderId
+router.get("/:orderId", authenticate, getOrderDetails);
+
+router.post("/dispatch/estimate", estimateDispatchOrder);
 
 export default router;

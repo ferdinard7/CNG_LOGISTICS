@@ -89,32 +89,62 @@ export const riderAvailableOrders = async (req, res) => {
 
 export const riderAcceptOrder = async (req, res) => {
   try {
-    const riderId = req.user.id;
+    const riderId = req.user?.id;
+    const role = req.user?.role;
     const { orderId } = req.params;
 
-    // rider must be online to accept (matches UI)
-    const rider = await prisma.user.findUnique({
-      where: { id: riderId },
-      select: { isOnline: true, isActive: true },
-    });
-
-    if (!rider?.isActive) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Account inactive" });
-    }
-
-    if (!rider.isOnline) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
+    if (!riderId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
         success: false,
-        message: "Go online to accept orders",
+        message: "Unauthorized",
       });
     }
 
-    // Atomic claim: only accept if still unassigned + pending
+    if (role !== "RIDER") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Only riders can accept orders",
+      });
+    }
+
+    const rider = await prisma.user.findUnique({
+      where: { id: riderId },
+      select: { id: true, isActive: true, isOnline: true, kycStatus: true },
+    });
+
+    if (!rider || !rider.isActive) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Account inactive",
+      });
+    }
+
+    if (!rider.isOnline) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "You must be online to accept orders",
+      });
+    }
+
+    if (rider.kycStatus !== "APPROVED") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Complete KYC verification to accept orders",
+      });
+    }
+
+    // Concurrency-safe claim:
+    // update only if: PENDING + driverId null
     const updated = await prisma.order.updateMany({
-      where: { id: orderId, driverId: null, status: "PENDING" },
+      where: {
+        id: orderId,
+        status: "PENDING",
+        driverId: null,
+        serviceType: "DISPATCH",
+      },
       data: {
         driverId: riderId,
-        status: "ASSIGNED",
+        status: "IN_PROGRESS",
         acceptedAt: new Date(),
       },
     });
@@ -126,21 +156,27 @@ export const riderAcceptOrder = async (req, res) => {
       });
     }
 
-    logger.info("Order accepted by rider", { orderId, riderId });
-
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { customer: { select: { firstName: true, lastName: true, phone: true } } },
+      include: {
+        customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        driver: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      },
     });
+
+    logger.info("Rider accepted order", { orderId, riderId });
 
     return res.status(StatusCodes.OK).json({
       success: true,
-      message: "Order accepted",
+      message: "Order accepted successfully",
       data: order,
     });
   } catch (err) {
     logger.error("riderAcceptOrder error", { err });
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 
