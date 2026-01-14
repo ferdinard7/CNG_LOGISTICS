@@ -197,6 +197,8 @@ model Order {
   acceptedAt      DateTime?
   completedAt     DateTime?
 
+  startedAt   DateTime?
+
   tipAmount       Decimal? @default(0.0)
 
   // optional: distance + eta if you want to store server-side

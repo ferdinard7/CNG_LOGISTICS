@@ -1,162 +1,91 @@
 import prisma from "../../config/prisma.js";
-import { orderIdParamSchema, estimateDispatchOrderSchema } from "../../validations/order.validation.js";
+import { orderIdParamSchema,
+  estimateDispatchOrderSchema,
+  createDispatchOrderSchema, } from "../../validations/order.validation.js";
 import {
   estimateDispatchDistanceAndEta,
   estimateDispatchPrice,
 } from "../../services/pricing.service.js";
-
+import { StatusCodes } from "http-status-codes";
+import logger from "../../config/logger.js";
+import { generateOrderCode, isPrismaUniqueViolation } from "../../utils/orderCode.js";
 
 const DRIVER_ROLES = new Set(["RIDER", "TRUCK_DRIVER", "WASTE_DRIVER"]);
 
-
-const generateDispatchOrderCode = () => {
-  const year = new Date().getFullYear();
-  const random4 = String(Math.floor(1000 + Math.random() * 9000));
-  return `DP-${year}-${random4}`;
-};
-
-const isUniqueConstraintError = (err) => err?.code === "P2002";
-
 export const createDispatchOrder = async (req, res) => {
   try {
-    const { error, value } = createDispatchOrderSchema.validate(req.body, {
-      abortEarly: false,
-    });
+    const customerId = req.user?.id;
+    if (!customerId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
+    }
 
+    const { error, value } = createDispatchOrderSchema.validate(req.body);
     if (error) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: "Validation error",
-        data: error.details.map((d) => d.message),
+        message: error.details.map((d) => d.message).join(", "),
       });
     }
 
-    const userId = req.user?.id;
-    const role = req.user?.role;
+    const pickup = value.pickup;
+    const dropoff = value.dropoff;
 
-    if (!userId) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
-
-    if (role !== "CONSUMER") {
-      return res.status(StatusCodes.FORBIDDEN).json({
-        success: false,
-        message: "Only customers can create dispatch orders",
-      });
-    }
-
-    const {
-      pickupAddress,
-      deliveryAddress,
-      pickupLat,
-      pickupLng,
-      deliveryLat,
-      deliveryLng,
-      itemDetails,
-      packageSize,
-      urgency,
-      deliveryTime,
-    } = value;
-
-    // compute distance/eta + price
     const { distanceKm, etaMinutes } = estimateDispatchDistanceAndEta({
-      pickupLat,
-      pickupLng,
-      deliveryLat,
-      deliveryLng,
+      pickupLat: pickup.lat,
+      pickupLng: pickup.lng,
+      deliveryLat: dropoff.lat,
+      deliveryLng: dropoff.lng,
     });
 
     const amount = estimateDispatchPrice({
       distanceKm,
-      packageSize,
-      urgency,
+      packageSize: value.packageSize,
+      urgency: value.urgency,
     });
 
-    // Retry on unique collision for orderCode
-    let order = null;
+    const created = await prisma.order.create({
+      data: {
+        orderCode: generateOrderCode("DISPATCH"),
+        serviceType: "DISPATCH",
+        status: "PENDING",
+        customerId,
 
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      const orderCode = generateDispatchOrderCode();
+        pickupAddress: pickup.address,
+        deliveryAddress: dropoff.address,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
+        deliveryLat: dropoff.lat,
+        deliveryLng: dropoff.lng,
 
-      try {
-        order = await prisma.order.create({
-          data: {
-            orderCode,
-            serviceType: "DISPATCH",
-            status: "PENDING",
-            customerId: userId,
+        distanceKm,
+        etaMinutes,
 
-            pickupAddress,
-            deliveryAddress,
-            pickupLat: typeof pickupLat === "number" ? pickupLat : null,
-            pickupLng: typeof pickupLng === "number" ? pickupLng : null,
-            deliveryLat: typeof deliveryLat === "number" ? deliveryLat : null,
-            deliveryLng: typeof deliveryLng === "number" ? deliveryLng : null,
+        amount, // ✅ store calculated price
+        currency: "NGN",
+        tipAmount: value.tipAmount ?? 0,
 
-            distanceKm: typeof distanceKm === "number" ? distanceKm : null,
-            etaMinutes: typeof etaMinutes === "number" ? etaMinutes : null,
-
-            amount,
-            currency: "NGN",
-
-            metadata: {
-              itemDetails,
-              packageSize,
-              urgency,
-              deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : null,
-            },
-          },
-          include: {
-            customer: {
-              select: { id: true, firstName: true, lastName: true, phone: true },
-            },
-            driver: { select: { id: true, firstName: true, lastName: true, phone: true } },
-          },
-        });
-
-        // success - break out
-        break;
-      } catch (err) {
-        // only retry for unique collision (orderCode)
-        if (isUniqueConstraintError(err)) {
-          logger.warn("Order code collision, retrying...", {
-            attempt,
-            orderCode,
-            prismaCode: err.code,
-          });
-
-          if (attempt < 5) continue;
-        }
-
-        // not a collision, or retries exhausted
-        throw err;
-      }
-    }
-
-    if (!order) {
-      logger.error("Failed to create order after retries", { customerId: userId });
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Could not create order at this time. Please try again.",
-      });
-    }
-
-    logger.info("Dispatch order created", {
-      orderId: order.id,
-      orderCode: order.orderCode,
-      customerId: userId,
+        metadata: {
+          pickup,
+          dropoff,
+          packageInfo: value.packageInfo,
+          note: value.note || "",
+          packageSize: value.packageSize,
+          urgency: value.urgency,
+        },
+      },
     });
 
     return res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Dispatch order created successfully",
-      data: order,
+      data: created,
     });
   } catch (err) {
     logger.error("createDispatchOrder error", { err });
+
+    // optional uniqueness handler if you import isPrismaUniqueViolation
+    // if (isPrismaUniqueViolation(err)) ...
+
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Internal server error",
@@ -181,7 +110,7 @@ export const createParkNgoOrder = async (req, res) => {
 
     const order = await prisma.order.create({
       data: {
-        orderCode: generateOrderCode("PNG"),
+        orderCode: generateOrderCode("PARK_N_GO"),
         serviceType: "PARK_N_GO",
         amount: estimatedFee,
         customerId: userId,
@@ -225,7 +154,7 @@ export const createWastePickupOrder = async (req, res) => {
 
     const order = await prisma.order.create({
       data: {
-        orderCode: generateOrderCode("WP"),
+        orderCode: generateOrderCode("WASTE_PICKUP"),
         serviceType: "WASTE_PICKUP",
         amount: estimatedFee,
         customerId: userId,
@@ -280,7 +209,7 @@ export const getOrderDetails = async (req, res) => {
     }
 
     const { orderId } = value;
-    const user = req.user; // from authenticate middleware
+    const user = req.user;
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -314,9 +243,6 @@ export const getOrderDetails = async (req, res) => {
       });
     }
 
-    // NOTE: Your UI shows pickup/delivery addresses, ETA, distance, item details, etc.
-    // Those fields are not yet in your Order model.
-    // For now, we return what exists + related user info.
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Order fetched",
@@ -325,24 +251,37 @@ export const getOrderDetails = async (req, res) => {
         orderCode: order.orderCode,
         serviceType: order.serviceType,
         status: order.status,
-        amount: order.amount,
+
+        // amounts (Decimal -> Number)
+        amount: order.amount != null ? Number(order.amount) : null,
+        tipAmount: order.tipAmount != null ? Number(order.tipAmount) : null,
         currency: order.currency,
+
         customerId: order.customerId,
         driverId: order.driverId,
+
+        pickupAddress: order.pickupAddress,
+        deliveryAddress: order.deliveryAddress,
+        pickupLat: order.pickupLat,
+        pickupLng: order.pickupLng,
+        deliveryLat: order.deliveryLat,
+        deliveryLng: order.deliveryLng,
+
+        distanceKm: order.distanceKm,
+        etaMinutes: order.etaMinutes,
+
+        acceptedAt: order.acceptedAt,
+        startedAt: order.startedAt,
+        completedAt: order.completedAt,
+
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
+
         customer: order.customer,
         driver: order.driver,
 
-        // placeholders for future delivery-details screen:
-        meta: {
-          pickup: null,
-          dropoff: null,
-          etaMinutes: null,
-          distanceKm: null,
-          progressPercent: null,
-          notes: null,
-        },
+        // your structured payload (pickup/dropoff/packageInfo/note/packageSize/urgency...)
+        meta: order.metadata || null,
       },
     });
   } catch (err) {
@@ -368,40 +307,20 @@ export const estimateDispatchOrder = async (req, res) => {
       });
     }
 
-    const {
-      pickupAddress,
-      deliveryAddress,
-      pickupLat,
-      pickupLng,
-      deliveryLat,
-      deliveryLng,
-      itemDetails,
-      packageSize,
-      urgency,
-      deliveryTime,
-    } = value;
+    const pickup = value.pickup;
+    const dropoff = value.dropoff;
 
     const { distanceKm, etaMinutes } = estimateDispatchDistanceAndEta({
-      pickupLat,
-      pickupLng,
-      deliveryLat,
-      deliveryLng,
+      pickupLat: pickup.lat,
+      pickupLng: pickup.lng,
+      deliveryLat: dropoff.lat,
+      deliveryLng: dropoff.lng,
     });
 
     const amount = estimateDispatchPrice({
       distanceKm,
-      packageSize,
-      urgency,
-    });
-
-    logger.info("Dispatch estimate generated", {
-      pickupAddress,
-      deliveryAddress,
-      distanceKm,
-      etaMinutes,
-      amount,
-      packageSize,
-      urgency,
+      packageSize: value.packageSize,
+      urgency: value.urgency,
     });
 
     return res.status(StatusCodes.OK).json({
@@ -414,10 +333,9 @@ export const estimateDispatchOrder = async (req, res) => {
         distanceKm,
         etaMinutes,
         breakdown: {
-          packageSize,
-          urgency,
-          itemDetails,
-          deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : null,
+          packageSize: value.packageSize,
+          urgency: value.urgency,
+          packageInfo: value.packageInfo,
         },
       },
     });

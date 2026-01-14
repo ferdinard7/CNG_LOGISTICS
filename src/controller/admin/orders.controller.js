@@ -90,7 +90,7 @@ export const adminUpdateOrderStatus = async (req, res) => {
     const { orderId } = req.params;
     const { status } = req.body;
 
-    const allowed = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
+    const allowed = ["PENDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
     if (!allowed.includes(status)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,

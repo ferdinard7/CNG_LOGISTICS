@@ -140,12 +140,11 @@ export const riderAcceptOrder = async (req, res) => {
         id: orderId,
         status: "PENDING",
         driverId: null,
-        serviceType: "DISPATCH",
       },
       data: {
-        driverId: riderId,
-        status: "IN_PROGRESS",
-        acceptedAt: new Date(),
+    driverId: riderId,
+    status: "ASSIGNED",
+    acceptedAt: new Date(),
       },
     });
 
@@ -223,6 +222,10 @@ export const riderStartOrder = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Order not found" });
     }
 
+    if (order.status === "IN_PROGRESS") {
+  return res.status(StatusCodes.OK).json({ success: true, message: "Order already started", data: order });
+  }
+
     if (order.status !== "ASSIGNED") {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -256,12 +259,12 @@ export const riderCompleteOrder = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Order not found" });
     }
 
-    if (!["ASSIGNED", "IN_PROGRESS"].includes(order.status)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: "Order cannot be completed",
-      });
-    }
+    if (order.status !== "IN_PROGRESS") {
+  return res.status(StatusCodes.BAD_REQUEST).json({
+    success: false,
+    message: "Only in-progress orders can be completed",
+  });
+}
 
     const updated = await prisma.order.update({
       where: { id: orderId },

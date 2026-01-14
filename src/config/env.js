@@ -14,4 +14,5 @@ export const env = {
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
   cloudinaryFolder: process.env.CLOUDINARY_FOLDER || "cnc-logistics",
+  cookieRefreshName: process.env.COOKIE_REFRESH_NAME || "cnc_refresh"
 };
