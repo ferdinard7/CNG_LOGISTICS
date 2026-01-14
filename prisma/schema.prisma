@@ -85,7 +85,7 @@ model KycProfile {
   userId          String       @unique
   status          KycStatus    @default(NOT_SUBMITTED)
 
-  // Rider fields
+  // ===== Existing Rider fields (keep for now) =====
   nin             String?
   motorcycleType  String?
   motorcycleMake  String?
@@ -93,24 +93,60 @@ model KycProfile {
   motorcycleYear  Int?
   motorcyclePlate String?
 
-  // Truck driver fields
+  // ===== Existing Driver fields (keep for now) =====
   driversLicenseNumber String?
   vehicleMake          String?
   vehicleModel         String?
   vehicleYear          Int?
   vehiclePlate         String?
 
-  // Document URLs
+  // ===== Existing Document URLs (keep for now) =====
   ninDocUrl            String?
   motorcycleRegDocUrl  String?
   driversLicenseDocUrl String?
   vehicleRegDocUrl     String?
 
+  // ===== NEW: Additional fields requested by client =====
+  // Shared/vehicle fields
+  vehicleColor    String?
+  vin             String?
+  vehicleTrim     String?
+  bodyType        String?
+  loadCapacity    String?
+
+  motorcycleColor String?
+
+  // ===== NEW: Upload URLs (Cloudinary) =====
+  // Drivers license front/back
+  driversLicenseFrontUrl String?
+  driversLicenseBackUrl  String?
+
+  // NIN front/back
+  ninFrontUrl String?
+  ninBackUrl  String?
+
+  // Arrays of photos
+  vehiclePhotos          Json? // array of urls
+  motorcyclePhotos       Json? // array of urls
+
+  // Single photo urls
+  driverInVehiclePhotoUrl      String?
+  riderOnMotorcyclePhotoUrl    String?
+
+  // Compliance declarations
+  hasValidVehiclePapers  Boolean?
+  hasValidInsurance      Boolean?
+  vehicleInGoodCondition Boolean?
+
+  // ===== NEW: store client-shaped payloads =====
+  riderKycJson   Json?
+  vehicleKycJson Json?
+
   // Prembly tracking
   premblyStatus        PremblyStatus @default(NOT_STARTED)
   premblyReference     String?
-  premblyPayload       Json?          // store request payload
-  premblyResponse      Json?          // store response for audit
+  premblyPayload       Json?
+  premblyResponse      Json?
 
   reviewedById    String?
   reviewedAt      DateTime?

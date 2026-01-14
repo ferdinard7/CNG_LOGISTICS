@@ -10,4 +10,8 @@ export const env = {
   accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || "20m",
   refreshTokenExpiresInDays: Number(process.env.REFRESH_TOKEN_EXPIRES_IN_DAYS || 14),
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12),
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+  cloudinaryFolder: process.env.CLOUDINARY_FOLDER || "cnc-logistics",
 };
