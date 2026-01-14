@@ -8,7 +8,7 @@ const router = Router();
 
 router.get("/me", authenticate, getMyKyc);
 router.post(
-  "/kyc/rider/submit",
+  "/rider/submit",
   authenticate,
   upload.fields([
     { name: "ninFront", maxCount: 1 },
@@ -20,7 +20,7 @@ router.post(
 );
 
 router.post(
-  "/kyc/vehicle/submit",
+  "/vehicle/submit",
   authenticate,
   upload.fields([
     { name: "driversLicenseFront", maxCount: 1 },
