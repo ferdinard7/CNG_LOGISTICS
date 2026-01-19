@@ -62,7 +62,7 @@
 
 /**
  * @swagger
- * /api/admin/stats:
+ * /api/admin/users/stats:
  *   get:
  *     summary: Get user statistics grouped by role
  *     tags: [Admin Users]
@@ -99,7 +99,7 @@
 
 /**
  * @swagger
- * /api/admin:
+ * /api/users/admin:
  *   get:
  *     summary: List users (Admin)
  *     tags: [Admin Users]
@@ -171,7 +171,7 @@
 
 /**
  * @swagger
- * /api/admin/{userId}/activate:
+ * /api/admin/users/{userId}/activate:
  *   patch:
  *     summary: Activate a user account
  *     tags: [Admin Users]
@@ -215,7 +215,7 @@
 
 /**
  * @swagger
- * /api/admin/{userId}/deactivate:
+ * /api/admin/users/{userId}/deactivate:
  *   patch:
  *     summary: Deactivate a user account
  *     tags: [Admin Users]

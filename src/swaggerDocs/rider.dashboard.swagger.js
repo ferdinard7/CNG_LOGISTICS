@@ -1,6 +1,6 @@
 /**
  * @swagger
- * /api/rider/overview:
+ * /api/rider/dashboard/overview:
  *   get:
  *     summary: Rider dashboard overview
  *     description: |
@@ -91,7 +91,7 @@
 
 /**
  * @swagger
- * /api/rider/summary:
+ * /api/rider/earnings/summary:
  *   get:
  *     summary: Rider earnings summary
  *     description: |
@@ -173,7 +173,7 @@
 
 /**
  * @swagger
- * /api/rider/status:
+ * /api/rider/orders/status:
  *   patch:
  *     summary: Set rider online or offline
  *     tags: [Rider]
@@ -224,7 +224,7 @@
 
 /**
  * @swagger
- * /api/rider/available:
+ * /api/rider/orders/available:
  *   get:
  *     summary: Get available delivery orders
  *     description: Returns unassigned pending orders available for riders
@@ -310,7 +310,7 @@
 
 /**
  * @swagger
- * /api/rider/{orderId}:
+ * /api/rider/orders/{orderId}:
  *   get:
  *     summary: Get order details
  *     tags: [Rider]
@@ -335,7 +335,7 @@
 
 /**
  * @swagger
- * /api/rider/{orderId}/accept:
+ * /api/rider/orders/{orderId}/accept:
  *   post:
  *     summary: Accept an available order
  *     tags: [Rider]
@@ -362,7 +362,7 @@
 
 /**
  * @swagger
- * /api/rider/active:
+ * /api/rider/orders/active:
  *   get:
  *     summary: Get active rider deliveries
  *     tags: [Rider]
@@ -381,7 +381,7 @@
 
 /**
  * @swagger
- * /api/rider/{orderId}/start:
+ * /api/rider/orders/{orderId}/start:
  *   patch:
  *     summary: Start an assigned order
  *     tags: [Rider]
@@ -406,7 +406,7 @@
 
 /**
  * @swagger
- * /api/rider/{orderId}/complete:
+ * /api/rider/orders/{orderId}/complete:
  *   patch:
  *     summary: Complete an order
  *     tags: [Rider]

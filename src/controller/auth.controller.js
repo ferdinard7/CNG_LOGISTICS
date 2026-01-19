@@ -100,7 +100,7 @@ export const register = async (req, res) => {
     logger.error("Register error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: "Internal server error",
+      message: `Internal server error ${err}`,
     });
   }
 };

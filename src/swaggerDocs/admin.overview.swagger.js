@@ -1,6 +1,6 @@
 /**
  * @swagger
- * /api/admin/summary:
+ * /api/admin/overview/summary:
  *   get:
  *     summary: Get admin overview summary
  *     description: Returns dashboard metrics including users, orders, revenue, and role breakdown.
@@ -59,7 +59,7 @@
 
 /**
  * @swagger
- * /api/admin/recent-orders:
+ * /api/admin/overview/recent-orders:
  *   get:
  *     summary: Get recent orders
  *     description: Fetches the most recent orders for admin dashboard view.
