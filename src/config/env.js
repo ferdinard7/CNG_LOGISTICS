@@ -14,5 +14,15 @@ export const env = {
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
   cloudinaryFolder: process.env.CLOUDINARY_FOLDER || "cnc-logistics",
-  cookieRefreshName: process.env.COOKIE_REFRESH_NAME || "cnc_refresh"
+  cookieRefreshName: process.env.COOKIE_REFRESH_NAME || "cnc_refresh",
+  appName: process.env.APP_NAME,
+  appBaseUrl: process.env.APP_BASE_URL,
+  frontendBaseUrl: process.env.FRONTEND_BASE_URL,
+
+  smtpHost: process.env.SMTP_HOST,
+  smtpPort: process.env.SMTP_PORT,
+  smtpSecure: process.env.SMTP_SECURE,
+  smtpUser: process.env.SMTP_USER,
+  smtpPass: process.env.SMTP_PASS,
+  smtpFrom: process.env.SMTP_FROM,
 };

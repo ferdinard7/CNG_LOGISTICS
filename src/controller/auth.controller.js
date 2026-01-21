@@ -1,7 +1,8 @@
 import { StatusCodes } from "http-status-codes";
 import prisma from "../config/prisma.js";
 import logger from "../config/logger.js";
-import { registerSchema, loginSchema } from "../validations/auth.validation.js";
+import crypto from "crypto";
+import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema} from "../validations/auth.validation.js";
 import { hashPassword, comparePassword } from "../utils/password.js";
 import {
   signAccessToken,
@@ -10,6 +11,7 @@ import {
   hashToken,
 } from "../utils/token.js";
 import { env } from "../config/env.js";
+import { sendPasswordResetEmail } from "../services/email.service.js";
 
 
 const sanitizeUser = (user) => {
@@ -322,6 +324,138 @@ export const logout = async (req, res) => {
     });
   } catch (err) {
     logger.error("Logout error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { error, value } = forgotPasswordSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Validation error",
+        data: error.details.map((d) => d.message),
+      });
+    }
+
+    const { identifier } = value;
+
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ email: identifier }, { phone: identifier }] },
+      select: { id: true, email: true, phone: true },
+    });
+
+    // Always return same message (prevents account enumeration)
+    const genericMsg = "If the account exists, reset instructions have been sent";
+
+    if (!user) {
+      return res.status(StatusCodes.OK).json({ success: true, message: genericMsg });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashToken(resetToken);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
+
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    // TODO: send email/SMS here
+    emailService.sendPasswordReset({ to: user.email, token: resetToken })
+
+    logger.info("Password reset token generated", { userId: user.id });
+
+    // In production, don't return token.
+    const isProd = env.nodeEnv === "production";
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: genericMsg,
+      ...(isProd ? {} : { data: { resetToken } }),
+    });
+  } catch (err) {
+    logger.error("forgotPassword error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { error, value } = resetPasswordSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Validation error",
+        data: error.details.map((d) => d.message),
+      });
+    }
+
+    const { token, newPassword } = value;
+    const tokenHash = hashToken(token);
+
+    const record = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: { select: { id: true, isActive: true } } },
+    });
+
+    if (!record || record.usedAt) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Invalid or used reset token",
+      });
+    }
+
+    if (record.expiresAt < new Date()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Reset token has expired",
+      });
+    }
+
+    if (!record.user?.isActive) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Account inactive",
+      });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: record.userId },
+        data: { passwordHash },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      }),
+      // Optional: revoke all refresh tokens so old sessions die
+      prisma.refreshToken.updateMany({
+        where: { userId: record.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    logger.info("Password reset successful", { userId: record.userId });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Password reset successful",
+    });
+  } catch (err) {
+    logger.error("resetPassword error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Internal server error",

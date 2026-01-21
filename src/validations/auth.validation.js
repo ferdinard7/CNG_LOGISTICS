@@ -15,3 +15,12 @@ export const loginSchema = Joi.object({
   identifier: Joi.string().trim().min(3).required(), // email OR phone
   password: Joi.string().required(),
 });
+
+export const forgotPasswordSchema = Joi.object({
+  identifier: Joi.string().trim().required(), // email or phone
+}).options({ abortEarly: false });
+
+export const resetPasswordSchema = Joi.object({
+  token: Joi.string().trim().required(),
+  newPassword: Joi.string().min(6).required(),
+}).options({ abortEarly: false });

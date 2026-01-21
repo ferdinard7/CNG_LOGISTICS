@@ -345,3 +345,62 @@
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Forgot password
+ *     description: Generates a password reset token and sends reset instructions (email/SMS). Returns a generic message even if account does not exist.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [identifier]
+ *             properties:
+ *               identifier:
+ *                 type: string
+ *                 example: "john@example.com"
+ *     responses:
+ *       200:
+ *         description: Reset instructions sent (if account exists)
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password
+ *     description: Resets password using a valid reset token.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, newPassword]
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: "reset_token_here"
+ *               newPassword:
+ *                 type: string
+ *                 example: "NewStrongPassword123!"
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *       400:
+ *         description: Invalid/expired token or validation error
+ *       403:
+ *         description: Account inactive
+ *       500:
+ *         description: Internal server error
+ */

@@ -29,29 +29,30 @@ enum KycStatus {
 }
 
 model User {
-  id           String    @id @default(cuid())
+  id           String @id @default(cuid())
   firstName    String
   lastName     String
-  email        String    @unique
-  phone        String    @unique
+  email        String @unique
+  phone        String @unique
   passwordHash String
 
-  role         UserRole  @default(CONSUMER)
-  kycStatus    KycStatus @default(NOT_SUBMITTED)
+  role      UserRole  @default(CONSUMER)
+  kycStatus KycStatus @default(NOT_SUBMITTED)
 
-  isActive     Boolean   @default(true)
-  isOnline     Boolean   @default(false)
-  lastLoginAt  DateTime?
+  isActive    Boolean   @default(true)
+  isOnline    Boolean   @default(false)
+  lastLoginAt DateTime?
 
-  lastLat Float?
-  lastLng Float?
+  lastLat               Float?
+  lastLng               Float?
   lastLocationUpdatedAt DateTime?
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  refreshTokens RefreshToken[]
-  kycProfile    KycProfile?
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  kycProfile          KycProfile?
 
   customerOrders Order[] @relation("CustomerOrders")
   driverOrders   Order[] @relation("DriverOrders")
@@ -61,12 +62,12 @@ model User {
 }
 
 model RefreshToken {
-  id         String   @id @default(cuid())
-  userId     String
-  tokenHash  String
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -81,9 +82,9 @@ enum PremblyStatus {
 }
 
 model KycProfile {
-  id              String       @id @default(cuid())
-  userId          String       @unique
-  status          KycStatus    @default(NOT_SUBMITTED)
+  id     String    @id @default(cuid())
+  userId String    @unique
+  status KycStatus @default(NOT_SUBMITTED)
 
   // ===== Existing Rider fields (keep for now) =====
   nin             String?
@@ -108,11 +109,11 @@ model KycProfile {
 
   // ===== NEW: Additional fields requested by client =====
   // Shared/vehicle fields
-  vehicleColor    String?
-  vin             String?
-  vehicleTrim     String?
-  bodyType        String?
-  loadCapacity    String?
+  vehicleColor String?
+  vin          String?
+  vehicleTrim  String?
+  bodyType     String?
+  loadCapacity String?
 
   motorcycleColor String?
 
@@ -126,12 +127,12 @@ model KycProfile {
   ninBackUrl  String?
 
   // Arrays of photos
-  vehiclePhotos          Json? // array of urls
-  motorcyclePhotos       Json? // array of urls
+  vehiclePhotos    Json? // array of urls
+  motorcyclePhotos Json? // array of urls
 
   // Single photo urls
-  driverInVehiclePhotoUrl      String?
-  riderOnMotorcyclePhotoUrl    String?
+  driverInVehiclePhotoUrl   String?
+  riderOnMotorcyclePhotoUrl String?
 
   // Compliance declarations
   hasValidVehiclePapers  Boolean?
@@ -143,17 +144,17 @@ model KycProfile {
   vehicleKycJson Json?
 
   // Prembly tracking
-  premblyStatus        PremblyStatus @default(NOT_STARTED)
-  premblyReference     String?
-  premblyPayload       Json?
-  premblyResponse      Json?
+  premblyStatus    PremblyStatus @default(NOT_STARTED)
+  premblyReference String?
+  premblyPayload   Json?
+  premblyResponse  Json?
 
   reviewedById    String?
   reviewedAt      DateTime?
   rejectionReason String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -166,24 +167,24 @@ enum ServiceType {
 }
 
 enum OrderStatus {
-  PENDING        // created, not yet assigned
-  ASSIGNED       // assigned to a driver/rider (accepted or admin assigned)
-  IN_PROGRESS    // rider started movement
+  PENDING // created, not yet assigned
+  ASSIGNED // assigned to a driver/rider (accepted or admin assigned)
+  IN_PROGRESS // rider started movement
   COMPLETED
   CANCELLED
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  orderCode     String      @unique
-  serviceType   ServiceType
-  status        OrderStatus @default(PENDING)
+  id          String      @id @default(cuid())
+  orderCode   String      @unique
+  serviceType ServiceType
+  status      OrderStatus @default(PENDING)
 
-  amount        Decimal     @default(0.0) @db.Decimal(12, 2)
-  currency      String      @default("NGN")
+  amount   Decimal @default(0.0) @db.Decimal(12, 2)
+  currency String  @default("NGN")
 
-  customerId    String
-  driverId      String?
+  customerId String
+  driverId   String?
 
   pickupAddress   String?
   deliveryAddress String?
@@ -192,24 +193,24 @@ model Order {
   deliveryLat     Float?
   deliveryLng     Float?
 
-  metadata      Json?       // 👈 IMPORTANT (dispatch / parkngo / waste)
+  metadata Json? // 👈 IMPORTANT (dispatch / parkngo / waste)
 
-  acceptedAt      DateTime?
-  completedAt     DateTime?
+  acceptedAt  DateTime?
+  completedAt DateTime?
 
-  startedAt   DateTime?
+  startedAt DateTime?
 
-  tipAmount       Decimal? @default(0.0)
+  tipAmount Decimal? @default(0.0)
 
   // optional: distance + eta if you want to store server-side
-  distanceKm      Float?
-  etaMinutes      Int?
+  distanceKm Float?
+  etaMinutes Int?
 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  customer      User        @relation("CustomerOrders", fields: [customerId], references: [id])
-  driver        User?       @relation("DriverOrders", fields: [driverId], references: [id])
+  customer User  @relation("CustomerOrders", fields: [customerId], references: [id])
+  driver   User? @relation("DriverOrders", fields: [driverId], references: [id])
 
   @@index([serviceType])
   @@index([status])
@@ -226,4 +227,18 @@ enum DispatchUrgency {
   STANDARD
   EXPRESS
   SAME_DAY
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

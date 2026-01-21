@@ -347,3 +347,133 @@ export const estimateDispatchOrder = async (req, res) => {
     });
   }
 };
+
+
+export const getMyOrders = async (req, res) => {
+  try {
+    const user = req.user;
+
+    const { status, serviceType, page = 1, limit = 20 } = req.query;
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = {};
+
+    // role scope
+    if (user.role === "CONSUMER") where.customerId = user.id;
+    // optional: allow admin to list all orders
+    if (user.role !== "CONSUMER" && user.role !== "ADMIN") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Only customers or admins can view orders list",
+      });
+    }
+
+    // filters
+    if (status) where.status = status;
+    if (serviceType) where.serviceType = serviceType;
+
+    const [items, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { createdAt: "desc" },
+        include: {
+          driver: { select: { id: true, firstName: true, lastName: true, phone: true, role: true } },
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Orders fetched",
+      data: {
+        items: items.map((o) => ({
+          id: o.id,
+          orderCode: o.orderCode,
+          serviceType: o.serviceType,
+          status: o.status,
+          amount: o.amount != null ? Number(o.amount) : null,
+          tipAmount: o.tipAmount != null ? Number(o.tipAmount) : null,
+          currency: o.currency,
+          pickupAddress: o.pickupAddress,
+          deliveryAddress: o.deliveryAddress,
+          distanceKm: o.distanceKm,
+          etaMinutes: o.etaMinutes,
+          driver: o.driver || null,
+          createdAt: o.createdAt,
+          updatedAt: o.updatedAt,
+        })),
+        total,
+        page: pageNum,
+        limit: limitNum,
+      },
+    });
+  } catch (err) {
+    logger.error("getMyOrders error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const cancelOrder = async (req, res) => {
+  try {
+    const user = req.user;
+
+    const { error, value } = orderIdParamSchema.validate(req.params, { abortEarly: false });
+    if (error) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Validation error",
+        data: error.details.map((d) => d.message),
+      });
+    }
+
+    if (user.role !== "CONSUMER") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Only customers can cancel orders",
+      });
+    }
+
+    const { orderId } = value;
+
+    const updated = await prisma.order.updateMany({
+      where: {
+        id: orderId,
+        customerId: user.id,
+        status: "PENDING",
+      },
+      data: {
+        status: "CANCELLED",
+      },
+    });
+
+    if (updated.count === 0) {
+      return res.status(StatusCodes.CONFLICT).json({
+        success: false,
+        message: "Order cannot be cancelled (not found or not pending)",
+      });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Order cancelled",
+      data: order,
+    });
+  } catch (err) {
+    logger.error("cancelOrder error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

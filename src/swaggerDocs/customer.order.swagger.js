@@ -390,3 +390,72 @@
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /api/customer/orders:
+ *   get:
+ *     summary: List customer orders
+ *     description: Returns a paginated list of orders for the authenticated customer (admin may see all if enabled).
+ *     tags: [Customer - Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           example: PENDING
+ *       - in: query
+ *         name: serviceType
+ *         schema:
+ *           type: string
+ *           example: DISPATCH
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           example: 20
+ *     responses:
+ *       200:
+ *         description: Orders fetched
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /api/customer/orders/{orderId}/cancel:
+ *   post:
+ *     summary: Cancel an order
+ *     description: Allows a customer to cancel their order only if the status is still PENDING.
+ *     tags: [Customer - Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order cancelled
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       409:
+ *         description: Order cannot be cancelled (not found or not pending)
+ *       500:
+ *         description: Internal server error
+ */
