@@ -39,7 +39,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
 
 export const sendPasswordResetEmail = async ({ to, token }) => {
   const appName = env.appName || "CNG Logistics";
-  const frontendBase = env.frontendBaseUrl || env.appBaseUrl || "http://localhost:3000";
+  const frontendBase = env.frontendBaseUrl || env.appBaseUrl || "http://localhost:5000";
 
   // Your frontend route can be /reset-password?token=...
   const resetLink = `${frontendBase}/reset-password?token=${encodeURIComponent(token)}`;

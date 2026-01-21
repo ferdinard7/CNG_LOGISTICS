@@ -369,7 +369,7 @@ export const forgotPassword = async (req, res) => {
     });
 
     // TODO: send email/SMS here
-    emailService.sendPasswordReset({ to: user.email, token: resetToken })
+    sendPasswordResetEmail({ to: user.email, token: resetToken })
 
     logger.info("Password reset token generated", { userId: user.id });
 
@@ -385,7 +385,8 @@ export const forgotPassword = async (req, res) => {
     logger.error("forgotPassword error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: "Internal server error",
+      message: `Internal server error: ${err}`,
+
     });
   }
 };
