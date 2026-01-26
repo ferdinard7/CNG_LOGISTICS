@@ -1,52 +1,54 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import logger from "../config/logger.js";
 import { env } from "../config/env.js";
 
-let transporter;
+let resendClient;
 
-const getTransporter = () => {
-  if (transporter) return transporter;
-
-  transporter = nodemailer.createTransport({
-    host: env.smtpHost,
-    port: Number(env.smtpPort),
-    secure: String(env.smtpSecure).toLowerCase() === "true",
-    auth: {
-      user: env.smtpUser,
-      pass: env.smtpPass,
-    },
-  });
-
-  return transporter;
+const getResend = () => {
+  if (resendClient) return resendClient;
+  if (!env.resendApiKey) throw new Error("Missing RESEND_API_KEY (env.resendApiKey)");
+  resendClient = new Resend(env.resendApiKey);
+  return resendClient;
 };
 
 export const sendEmail = async ({ to, subject, html, text }) => {
-  const tx = getTransporter();
+  const resend = getResend();
 
-  const from = env.smtpFrom || `${env.appName || "App"} <${env.smtpUser}>`;
+  if (!env.emailFrom) throw new Error("Missing EMAIL_FROM (env.emailFrom)");
 
-  const info = await tx.sendMail({
-    from,
-    to,
-    subject,
-    text,
-    html,
-  });
+  try {
+    const { data, error } = await resend.emails.send({
+      from: env.emailFrom, // "Name <email@domain.com>"
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      text,
+    });
 
-  logger.info("Email sent", { to, messageId: info.messageId });
-  return info;
+    if (error) {
+      logger.error("Resend sendEmail error", { to, error });
+      throw new Error(`Resend error: ${error?.message || "Unknown error"}`);
+    }
+
+    logger.info("Email sent (Resend)", { to, id: data?.id });
+    return data;
+  } catch (err) {
+    logger.error("Resend sendEmail failed", { to, err: err?.message, stack: err?.stack });
+    throw err;
+  }
 };
 
 export const sendPasswordResetEmail = async ({ to, token }) => {
   const appName = env.appName || "CNG Logistics";
   const frontendBase = env.frontendBaseUrl || env.appBaseUrl || "http://localhost:5000";
 
-  // Your frontend route can be /reset-password?token=...
   const resetLink = `${frontendBase}/reset-password?token=${encodeURIComponent(token)}`;
-
   const subject = `${appName} - Reset your password`;
 
-  const text = `You requested a password reset.\n\nReset link: ${resetLink}\n\nIf you did not request this, ignore this email.`;
+  const text =
+    `You requested a password reset.\n\n` +
+    `Reset link: ${resetLink}\n\n` +
+    `If you did not request this, ignore this email.`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.5;">
