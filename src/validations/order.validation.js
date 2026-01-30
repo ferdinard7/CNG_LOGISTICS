@@ -25,14 +25,34 @@ export const estimateDispatchOrderSchema = Joi.object({
   urgency: Joi.string().valid("STANDARD", "EXPRESS", "SAME_DAY").required(),
 }).options({ abortEarly: false });
 
+const packageInfoSchema = Joi.object({
+  itemName: Joi.string().min(2),
+  itemDetails: Joi.string().min(2),
+  quantity: Joi.number().integer().min(1).default(1),
+  weightKg: Joi.number().min(0).optional(),
+  isFragile: Joi.boolean().default(false),
+})
+  .custom((val, helpers) => {
+    if (!val.itemName && !val.itemDetails) {
+      return helpers.error("any.required");
+    }
+    // normalize
+    return {
+      ...val,
+      itemName: val.itemName || val.itemDetails,
+    };
+  })
+  .required();
+
 export const createDispatchOrderSchema = Joi.object({
   pickup: dispatchLocationSchema,
   dropoff: dispatchLocationSchema,
-  packageInfo: dispatchPackageSchema,
+  packageInfo: packageInfoSchema,
 
   packageSize: Joi.string().valid("SMALL", "MEDIUM", "LARGE").required(),
   urgency: Joi.string().valid("STANDARD", "EXPRESS", "SAME_DAY").required(),
 
+  deliveryTime: Joi.date().iso().optional(), // ✅ new
   note: Joi.string().max(500).allow("").optional(),
   tipAmount: Joi.number().min(0).optional(),
 }).options({ abortEarly: false });

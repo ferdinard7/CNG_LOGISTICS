@@ -65,12 +65,13 @@ export const createDispatchOrder = async (req, res) => {
         tipAmount: value.tipAmount ?? 0,
 
         metadata: {
-          pickup,
-          dropoff,
-          packageInfo: value.packageInfo,
-          note: value.note || "",
-          packageSize: value.packageSize,
-          urgency: value.urgency,
+        pickup,
+        dropoff,
+        packageInfo: value.packageInfo,
+        note: value.note || "",
+        packageSize: value.packageSize,
+        urgency: value.urgency,
+        deliveryTime: value.deliveryTime ? new Date(value.deliveryTime).toISOString() : null,
         },
       },
     });

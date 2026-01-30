@@ -259,28 +259,85 @@ export const riderCompleteOrder = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Order not found" });
     }
 
-    if (order.status !== "IN_PROGRESS") {
-  return res.status(StatusCodes.BAD_REQUEST).json({
-    success: false,
-    message: "Only in-progress orders can be completed",
-  });
-}
+    if (!["ASSIGNED", "IN_PROGRESS"].includes(order.status)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Order cannot be completed",
+      });
+    }
 
-    const updated = await prisma.order.update({
-      where: { id: orderId },
-      data: { status: "COMPLETED", completedAt: new Date() },
+    const amount = order.amount != null ? Number(order.amount) : 0;
+    const tipAmount = order.tipAmount != null ? Number(order.tipAmount) : 0;
+
+    const feePercent = Number(process.env.PLATFORM_FEE_PERCENT || 15);
+    const platformFee = Number(((amount * feePercent) / 100).toFixed(2));
+    const driverEarning = Number((amount - platformFee).toFixed(2));
+    const creditAmount = Number((driverEarning + tipAmount).toFixed(2));
+
+    const result = await prisma.$transaction(async (tx) => {
+      // prevent double credit (wallet tx unique by orderId)
+      const existingTx = await tx.walletTransaction.findUnique({
+        where: { orderId },
+        select: { id: true },
+      });
+
+      if (existingTx) {
+        // already credited, just return updated order
+        const fresh = await tx.order.findUnique({ where: { id: orderId } });
+        return { order: fresh, credited: false };
+      }
+
+      const rider = await tx.user.findUnique({
+        where: { id: riderId },
+        select: { walletBalance: true },
+      });
+
+      const before = rider?.walletBalance != null ? Number(rider.walletBalance) : 0;
+      const after = Number((before + creditAmount).toFixed(2));
+
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+          platformFee,
+          driverEarning,
+        },
+      });
+
+      await tx.user.update({
+        where: { id: riderId },
+        data: { walletBalance: after },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: riderId,
+          type: "CREDIT",
+          amount: creditAmount,
+          balanceBefore: before,
+          balanceAfter: after,
+          orderId,
+          note: `Earning from order ${updatedOrder.orderCode}`,
+        },
+      });
+
+      return { order: updatedOrder, credited: true, creditAmount, after };
     });
 
-    logger.info("Order completed by rider", { orderId, riderId });
+    logger.info("Order completed by rider", { orderId, riderId, ...result });
 
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Order completed",
-      data: updated,
+      data: result.order,
     });
   } catch (err) {
     logger.error("riderCompleteOrder error", { err });
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 
@@ -340,6 +397,47 @@ export const riderGetOrderDetails = async (req, res) => {
     });
   } catch (err) {
     logger.error("riderGetOrderDetails error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const riderWallet = async (req, res) => {
+  try {
+    const riderId = req.user.id;
+
+    const user = await prisma.user.findUnique({
+      where: { id: riderId },
+      select: { id: true, walletBalance: true },
+    });
+
+    const txs = await prisma.walletTransaction.findMany({
+      where: { userId: riderId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Wallet fetched",
+      data: {
+        balance: user?.walletBalance != null ? Number(user.walletBalance) : 0,
+        transactions: txs.map((t) => ({
+          id: t.id,
+          type: t.type,
+          amount: Number(t.amount),
+          balanceBefore: Number(t.balanceBefore),
+          balanceAfter: Number(t.balanceAfter),
+          orderId: t.orderId,
+          note: t.note,
+          createdAt: t.createdAt,
+        })),
+      },
+    });
+  } catch (err) {
+    logger.error("riderWallet error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Internal server error",
