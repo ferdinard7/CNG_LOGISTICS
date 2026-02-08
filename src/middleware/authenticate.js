@@ -14,7 +14,15 @@ export const authenticate = async (req, res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, role: true, kycStatus: true, isActive: true },
+      select: { 
+        id: true, 
+        role: true, 
+        kycStatus: true, 
+        isActive: true,
+        isOnline: true,
+        availabilityStatus: true,
+        maxActiveOrders: true
+   },
     });
 
     if (!user || !user.isActive) {

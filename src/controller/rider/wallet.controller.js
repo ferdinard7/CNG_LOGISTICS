@@ -16,16 +16,23 @@ export const getMyWallet = async (req, res) => {
       });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, walletBalance: true },
-    });
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
 
-    const txs = await prisma.walletTransaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
+    const [user, txs, total] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { walletBalance: true },
+      }),
+      prisma.walletTransaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.walletTransaction.count({ where: { userId } }),
+    ]);
 
     return res.status(StatusCodes.OK).json({
       success: true,
@@ -43,6 +50,9 @@ export const getMyWallet = async (req, res) => {
           note: t.note,
           createdAt: t.createdAt,
         })),
+        page,
+        limit,
+        total,
       },
     });
   } catch (err) {
@@ -53,6 +63,7 @@ export const getMyWallet = async (req, res) => {
     });
   }
 };
+
 
 export const requestWithdrawal = async (req, res) => {
   try {
@@ -77,6 +88,13 @@ export const requestWithdrawal = async (req, res) => {
     const { amount, bankName, accountName, accountNumber } = value;
 
     const created = await prisma.$transaction(async (tx) => {
+      // 🔒 prevent multiple pending withdrawals
+      const pending = await tx.withdrawal.findFirst({
+        where: { userId, status: "PENDING" },
+        select: { id: true },
+      });
+      if (pending) return { hasPending: true };
+
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { walletBalance: true },
@@ -84,13 +102,10 @@ export const requestWithdrawal = async (req, res) => {
 
       const balance = user?.walletBalance != null ? Number(user.walletBalance) : 0;
 
-      // Only allow withdrawal request if sufficient funds
       if (balance < amount) {
         return { insufficient: true, balance };
       }
 
-      // V1: we do NOT debit immediately; debit happens when admin marks paid
-      // This keeps things simple for finance flow.
       const withdrawal = await tx.withdrawal.create({
         data: {
           userId,
@@ -104,6 +119,13 @@ export const requestWithdrawal = async (req, res) => {
 
       return { withdrawal };
     });
+
+    if (created.hasPending) {
+      return res.status(StatusCodes.CONFLICT).json({
+        success: false,
+        message: "You already have a pending withdrawal request",
+      });
+    }
 
     if (created.insufficient) {
       return res.status(StatusCodes.BAD_REQUEST).json({

@@ -1,7 +1,8 @@
 import prisma from "../../config/prisma.js";
 import { orderIdParamSchema,
   estimateDispatchOrderSchema,
-  createDispatchOrderSchema, } from "../../validations/order.validation.js";
+  createDispatchOrderSchema,
+createParkNgoOrderSchema } from "../../validations/order.validation.js";
 import {
   estimateDispatchDistanceAndEta,
   estimateDispatchPrice,
@@ -96,52 +97,92 @@ export const createDispatchOrder = async (req, res) => {
 
 export const createParkNgoOrder = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { error, value } = createParkNgoOrderSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Validation error",
+        data: error.details.map((d) => d.message),
+      });
+    }
+
     const {
       currentAddress,
       newAddress,
       movingDate,
       houseSize,
-      serviceType,
+      serviceType,      // <- dropdown value (FULL_SERVICE, PACKING_ONLY, ...)
       estimatedItems,
       contactPhone,
       notes,
       estimatedFee,
-    } = req.body;
+    } = value;
 
     const order = await prisma.order.create({
       data: {
         orderCode: generateOrderCode("PARK_N_GO"),
         serviceType: "PARK_N_GO",
-        amount: estimatedFee,
+        status: "PENDING",
         customerId: userId,
+
+        // store a useful searchable summary too
+        pickupAddress: currentAddress,
+        deliveryAddress: newAddress,
+
+        amount: estimatedFee,
+        currency: "NGN",
+
         metadata: {
-          currentAddress,
-          newAddress,
-          movingDate,
-          houseSize,
-          serviceType,
-          estimatedItems,
-          contactPhone,
-          notes,
+          parkNgo: {
+            currentAddress,
+            newAddress,
+            movingDate: new Date(movingDate).toISOString(),
+            houseSize,
+            moveServiceType: serviceType,
+            estimatedItems,
+            contactPhone,
+            notes: notes || "",
+          },
         },
       },
     });
 
-    return res.status(201).json({
+    return res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Park N Go order created",
       data: order,
     });
   } catch (err) {
     logger.error("createParkNgoOrder error", { err });
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 
+
 export const createWastePickupOrder = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { error, value } = createWastePickupOrderSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Validation error",
+        data: error.details.map((d) => d.message),
+      });
+    }
+
     const {
       pickupAddress,
       wasteTypes,
@@ -151,36 +192,48 @@ export const createWastePickupOrder = async (req, res) => {
       preferredPickupTime,
       notes,
       estimatedFee,
-    } = req.body;
+    } = value;
 
-    const order = await prisma.order.create({
+    const created = await prisma.order.create({
       data: {
         orderCode: generateOrderCode("WASTE_PICKUP"),
         serviceType: "WASTE_PICKUP",
-        amount: estimatedFee,
+        status: "PENDING",
         customerId: userId,
+
+        // useful searchable summary
+        pickupAddress,
+
+        amount: estimatedFee,
+        currency: "NGN",
+
         metadata: {
-          pickupAddress,
-          wasteTypes,
-          estimatedWeight,
-          quantity,
-          condition,
-          preferredPickupTime,
-          notes,
+          wastePickup: {
+            pickupAddress,
+            wasteTypes,
+            estimatedWeight,
+            quantity,
+            condition,
+            preferredPickupTime: preferredPickupTime ? new Date(preferredPickupTime).toISOString() : null,
+            notes: notes || "",
+          },
+          // admin will fill this on accept:
+          wasteRequestId: null,
         },
       },
     });
 
-    return res.status(201).json({
+    return res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Waste pickup request created",
-      data: order,
+      data: created,
     });
   } catch (err) {
     logger.error("createWastePickupOrder error", { err });
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
   }
 };
+
 
 const canViewOrder = ({ user, order }) => {
   if (!user) return false;
@@ -353,18 +406,13 @@ export const estimateDispatchOrder = async (req, res) => {
 export const getMyOrders = async (req, res) => {
   try {
     const user = req.user;
-
-    const { status, serviceType, page = 1, limit = 20 } = req.query;
+    const { status, serviceType, customerId, page = 1, limit = 20 } = req.query;
 
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
     const skip = (pageNum - 1) * limitNum;
 
-    const where = {};
-
-    // role scope
-    if (user.role === "CONSUMER") where.customerId = user.id;
-    // optional: allow admin to list all orders
+    // Only customer or admin
     if (user.role !== "CONSUMER" && user.role !== "ADMIN") {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
@@ -372,7 +420,34 @@ export const getMyOrders = async (req, res) => {
       });
     }
 
-    // filters
+    const where = {};
+
+    // scope
+    if (user.role === "CONSUMER") {
+      where.customerId = user.id;
+    } else if (user.role === "ADMIN") {
+      // optional admin filter
+      if (customerId) where.customerId = customerId;
+    }
+
+    // validate enums
+    const allowedStatus = new Set(["PENDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]);
+    const allowedService = new Set(["DISPATCH", "PARK_N_GO", "WASTE_PICKUP", "RIDE_BOOKING"]);
+
+    if (status && !allowedStatus.has(status)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Invalid status. Allowed: ${Array.from(allowedStatus).join(", ")}`,
+      });
+    }
+
+    if (serviceType && !allowedService.has(serviceType)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Invalid serviceType. Allowed: ${Array.from(allowedService).join(", ")}`,
+      });
+    }
+
     if (status) where.status = status;
     if (serviceType) where.serviceType = serviceType;
 
@@ -445,25 +520,30 @@ export const cancelOrder = async (req, res) => {
 
     const { orderId } = value;
 
-    const updated = await prisma.order.updateMany({
-      where: {
-        id: orderId,
-        customerId: user.id,
-        status: "PENDING",
-      },
-      data: {
-        status: "CANCELLED",
-      },
+    // check existence + ownership
+    const existing = await prisma.order.findFirst({
+      where: { id: orderId, customerId: user.id },
+      select: { id: true, status: true },
     });
 
-    if (updated.count === 0) {
-      return res.status(StatusCodes.CONFLICT).json({
+    if (!existing) {
+      return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: "Order cannot be cancelled (not found or not pending)",
+        message: "Order not found",
       });
     }
 
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (existing.status !== "PENDING") {
+      return res.status(StatusCodes.CONFLICT).json({
+        success: false,
+        message: "Order cannot be cancelled (only pending orders can be cancelled)",
+      });
+    }
+
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: "CANCELLED" },
+    });
 
     return res.status(StatusCodes.OK).json({
       success: true,

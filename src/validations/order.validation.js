@@ -61,6 +61,56 @@ export const orderIdParamSchema = Joi.object({
   orderId: Joi.string().trim().required(),
 }).options({ abortEarly: false });
 
+const parkNgoHouseSizeEnum = [
+  "STUDIO",
+  "1_BEDROOM",
+  "2_BEDROOM",
+  "3_BEDROOM",
+  "4_BEDROOM",
+  "5PLUS_BEDROOM",
+];
+
+const parkNgoServiceTypeEnum = [
+  "FULL_SERVICE",     // Full Service (Pack & Move)
+  "PACKING_ONLY",
+  "MOVING_ONLY",
+  "UNPACKING_SERVICE",
+];
+
+const parkNgoEstimatedItemsEnum = [
+  "LIGHT",            // Light (Few items)
+  "MEDIUM",           // Medium (Standard household)
+  "HEAVY",            // Heavy (Full house)
+  "COMMERCIAL_OFFICE",
+];
+
+export const createParkNgoOrderSchema = Joi.object({
+  currentAddress: Joi.string().min(3).required(),
+  newAddress: Joi.string().min(3).required(),
+
+  // Expect ISO date string from frontend
+  movingDate: Joi.date().iso().required(),
+
+  houseSize: Joi.string()
+    .valid(...parkNgoHouseSizeEnum)
+    .required(),
+
+  serviceType: Joi.string()
+    .valid(...parkNgoServiceTypeEnum)
+    .required(),
+
+  estimatedItems: Joi.string()
+    .valid(...parkNgoEstimatedItemsEnum)
+    .required(),
+
+  contactPhone: Joi.string().min(7).max(20).required(),
+
+  notes: Joi.string().max(1000).allow("").optional(),
+
+  // estimated fee should be sent from frontend (or admin/pricing later)
+  estimatedFee: Joi.number().min(0).required(),
+}).options({ abortEarly: false });
+
 // export const estimateDispatchOrderSchema = Joi.object({
 //   pickupAddress: Joi.string().trim().min(3).required(),
 //   deliveryAddress: Joi.string().trim().min(3).required(),

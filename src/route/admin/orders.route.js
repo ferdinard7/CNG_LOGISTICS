@@ -5,13 +5,18 @@ import {
   adminGetOrder,
   adminUpdateOrderStatus,
   adminAssignDriver,
+  adminListEligibleDrivers,
+  adminAcceptWastePickup
 } from "../../controller/admin/orders.controller.js";
 
 const router = Router();
 
 router.get("/", authenticate, requireAdmin, adminListOrders);
+router.get("/eligible-drivers", authenticate, requireAdmin, adminListEligibleDrivers);
+router.get("/waste-pickup/:orderId/accept", authenticate, requireAdmin, adminAcceptWastePickup);
 router.get("/:orderId", authenticate, requireAdmin, adminGetOrder);
 router.patch("/:orderId/status", authenticate, requireAdmin, adminUpdateOrderStatus);
 router.patch("/:orderId/assign-driver", authenticate, requireAdmin, adminAssignDriver);
+
 
 export default router;

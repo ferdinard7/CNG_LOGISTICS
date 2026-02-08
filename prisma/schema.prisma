@@ -28,6 +28,12 @@ enum KycStatus {
   REJECTED
 }
 
+enum AvailabilityStatus {
+  OFFLINE
+  AVAILABLE
+  BUSY
+}
+
 model User {
   id           String @id @default(cuid())
   firstName    String
@@ -41,6 +47,12 @@ model User {
 
   isActive    Boolean   @default(true)
   isOnline    Boolean   @default(false)
+
+   // ✅ NEW: availability state for dispatch acceptance
+  availabilityStatus AvailabilityStatus @default(OFFLINE)
+
+  // ✅ NEW: capacity for concurrent active orders (MVP=1, can increase later)
+  maxActiveOrders Int @default(1)
   lastLoginAt DateTime?
 
   lastLat               Float?
@@ -264,6 +276,7 @@ model WalletTransaction {
 
   // link earning to order (so one order credits once)
   orderId String? @unique
+  withdrawalId  String? @unique
   note    String?
 
   createdAt DateTime @default(now())

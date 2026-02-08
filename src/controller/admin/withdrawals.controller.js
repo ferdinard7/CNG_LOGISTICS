@@ -58,10 +58,15 @@ export const adminListWithdrawals = async (req, res) => {
 export const adminReviewWithdrawal = async (req, res) => {
   try {
     if (req.user.role !== "ADMIN") {
-      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: "Admins only" });
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Admins only",
+      });
     }
 
-    const { error: pErr, value: pVal } = withdrawalIdParamSchema.validate(req.params, { abortEarly: false });
+    const { error: pErr, value: pVal } = withdrawalIdParamSchema.validate(req.params, {
+      abortEarly: false,
+    });
     if (pErr) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -70,7 +75,9 @@ export const adminReviewWithdrawal = async (req, res) => {
       });
     }
 
-    const { error, value } = adminReviewWithdrawalSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = adminReviewWithdrawalSchema.validate(req.body, {
+      abortEarly: false,
+    });
     if (error) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -82,11 +89,18 @@ export const adminReviewWithdrawal = async (req, res) => {
     const { withdrawalId } = pVal;
     const { action, rejectionReason, paymentRef } = value;
 
+    // 🔒 enforce paymentRef when marking paid
+    if (action === "MARK_PAID" && !paymentRef) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "paymentRef is required when marking as PAID",
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const w = await tx.withdrawal.findUnique({ where: { id: withdrawalId } });
       if (!w) return { notFound: true };
 
-      // Approve
       if (action === "APPROVE") {
         if (w.status !== "PENDING") return { badState: true, status: w.status };
 
@@ -103,7 +117,6 @@ export const adminReviewWithdrawal = async (req, res) => {
         return { updated };
       }
 
-      // Reject
       if (action === "REJECT") {
         if (w.status !== "PENDING") return { badState: true, status: w.status };
 
@@ -120,13 +133,11 @@ export const adminReviewWithdrawal = async (req, res) => {
         return { updated };
       }
 
-      // Mark paid (this is where we actually debit wallet + ledger)
       if (action === "MARK_PAID") {
         if (!["APPROVED", "PENDING"].includes(w.status)) {
           return { badState: true, status: w.status };
         }
 
-        // prevent double debit (unique withdrawalId on WalletTransaction)
         const existingTx = await tx.walletTransaction.findUnique({
           where: { withdrawalId },
           select: { id: true },
@@ -173,21 +184,26 @@ export const adminReviewWithdrawal = async (req, res) => {
           },
         });
 
-        return { updated, after };
+        return { updated };
       }
 
       return { invalidAction: true };
     });
 
     if (result.notFound) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Withdrawal not found" });
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Withdrawal not found",
+      });
     }
+
     if (result.badState) {
       return res.status(StatusCodes.CONFLICT).json({
         success: false,
         message: `Withdrawal cannot be processed in status: ${result.status}`,
       });
     }
+
     if (result.insufficient) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -195,6 +211,7 @@ export const adminReviewWithdrawal = async (req, res) => {
         data: { balance: result.balance },
       });
     }
+
     if (result.alreadyPaid) {
       return res.status(StatusCodes.CONFLICT).json({
         success: false,

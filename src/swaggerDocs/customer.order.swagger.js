@@ -1,6 +1,25 @@
 /**
+ * CUSTOMER ORDERS SWAGGER
+ * Mounted at: /api/customer/orders
+ * Routes source: orders.route.js
+ */
+
+/**
+ * @swagger
+ * tags:
+ *   - name: Customer - Orders
+ *     description: Customer order endpoints (Dispatch, Park N Go, Waste Pickup)
+ */
+
+/**
  * @swagger
  * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ *
  *   schemas:
  *     DispatchLocation:
  *       type: object
@@ -39,6 +58,150 @@
  *           type: boolean
  *           example: false
  *
+ *     DispatchCreateRequest:
+ *       type: object
+ *       required: [pickup, dropoff, packageInfo, packageSize, urgency]
+ *       properties:
+ *         pickup:
+ *           $ref: '#/components/schemas/DispatchLocation'
+ *         dropoff:
+ *           $ref: '#/components/schemas/DispatchLocation'
+ *         packageInfo:
+ *           $ref: '#/components/schemas/DispatchPackageInfo'
+ *         packageSize:
+ *           type: string
+ *           enum: [SMALL, MEDIUM, LARGE]
+ *           example: SMALL
+ *         urgency:
+ *           type: string
+ *           enum: [STANDARD, EXPRESS, SAME_DAY]
+ *           example: STANDARD
+ *         note:
+ *           type: string
+ *           example: "Handle with care"
+ *         tipAmount:
+ *           type: number
+ *           example: 0
+ *         deliveryTime:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *
+ *     DispatchEstimateRequest:
+ *       type: object
+ *       required: [pickup, dropoff, packageInfo, packageSize, urgency]
+ *       properties:
+ *         pickup:
+ *           $ref: '#/components/schemas/DispatchLocation'
+ *         dropoff:
+ *           $ref: '#/components/schemas/DispatchLocation'
+ *         packageInfo:
+ *           $ref: '#/components/schemas/DispatchPackageInfo'
+ *         packageSize:
+ *           type: string
+ *           enum: [SMALL, MEDIUM, LARGE]
+ *           example: SMALL
+ *         urgency:
+ *           type: string
+ *           enum: [STANDARD, EXPRESS, SAME_DAY]
+ *           example: STANDARD
+ *
+ *     DispatchEstimateResponseData:
+ *       type: object
+ *       properties:
+ *         serviceType:
+ *           type: string
+ *           example: "DISPATCH"
+ *         currency:
+ *           type: string
+ *           example: "NGN"
+ *         amount:
+ *           type: number
+ *           example: 3450
+ *         distanceKm:
+ *           type: number
+ *           example: 7.2
+ *         etaMinutes:
+ *           type: integer
+ *           example: 17
+ *         breakdown:
+ *           type: object
+ *           properties:
+ *             packageSize:
+ *               type: string
+ *               example: "SMALL"
+ *             urgency:
+ *               type: string
+ *               example: "STANDARD"
+ *             packageInfo:
+ *               $ref: '#/components/schemas/DispatchPackageInfo'
+ *
+ *     ParkNgoCreateRequest:
+ *       type: object
+ *       required: [currentAddress, newAddress, movingDate, houseSize, serviceType, contactPhone, estimatedFee]
+ *       properties:
+ *         currentAddress:
+ *           type: string
+ *           example: "12 Allen Ave, Ikeja"
+ *         newAddress:
+ *           type: string
+ *           example: "55 Admiralty Way, Lekki"
+ *         movingDate:
+ *           type: string
+ *           format: date-time
+ *           example: "2026-02-12T10:00:00.000Z"
+ *         houseSize:
+ *           type: string
+ *           example: "2-BEDROOM"
+ *         serviceType:
+ *           type: string
+ *           description: "Dropdown value for Park N Go service type"
+ *           example: "FULL_SERVICE"
+ *         estimatedItems:
+ *           type: string
+ *           example: "3 boxes, 1 TV, 1 table"
+ *         contactPhone:
+ *           type: string
+ *           example: "+2348012345678"
+ *         notes:
+ *           type: string
+ *           example: "Fragile items included"
+ *         estimatedFee:
+ *           type: number
+ *           example: 25000
+ *
+ *     WastePickupCreateRequest:
+ *       type: object
+ *       required: [pickupAddress, wasteTypes, quantity, preferredPickupTime, estimatedFee]
+ *       properties:
+ *         pickupAddress:
+ *           type: string
+ *           example: "12 Allen Ave, Ikeja"
+ *         wasteTypes:
+ *           type: array
+ *           items:
+ *             type: string
+ *           example: ["PLASTIC", "PAPER"]
+ *         estimatedWeight:
+ *           type: number
+ *           example: 12.5
+ *         quantity:
+ *           type: number
+ *           example: 3
+ *         condition:
+ *           type: string
+ *           example: "BAGGED"
+ *         preferredPickupTime:
+ *           type: string
+ *           format: date-time
+ *           example: "2026-02-12T10:00:00.000Z"
+ *         notes:
+ *           type: string
+ *           example: "Call on arrival"
+ *         estimatedFee:
+ *           type: number
+ *           example: 5000
+ *
  *     Order:
  *       type: object
  *       properties:
@@ -69,16 +232,22 @@
  *           nullable: true
  *         pickupAddress:
  *           type: string
+ *           nullable: true
  *         deliveryAddress:
  *           type: string
+ *           nullable: true
  *         pickupLat:
  *           type: number
+ *           nullable: true
  *         pickupLng:
  *           type: number
+ *           nullable: true
  *         deliveryLat:
  *           type: number
+ *           nullable: true
  *         deliveryLng:
  *           type: number
+ *           nullable: true
  *         distanceKm:
  *           type: number
  *           nullable: true
@@ -106,6 +275,44 @@
  *         metadata:
  *           type: object
  *           nullable: true
+ *
+ *     ApiSuccessResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         message:
+ *           type: string
+ *
+ *     ApiErrorResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         message:
+ *           type: string
+ *           example: "Validation error"
+ *         data:
+ *           nullable: true
+ *
+ *     PaginatedOrders:
+ *       type: object
+ *       properties:
+ *         items:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/Order'
+ *         total:
+ *           type: integer
+ *           example: 120
+ *         page:
+ *           type: integer
+ *           example: 1
+ *         limit:
+ *           type: integer
+ *           example: 20
  */
 
 /**
@@ -113,56 +320,34 @@
  * /api/customer/orders/dispatch:
  *   post:
  *     summary: Create a dispatch order
- *     description: Creates a DISPATCH order, computes distance/ETA and price on the server, and stores structured payload in metadata.
+ *     description: Creates a DISPATCH order (computes distance/ETA and price server-side) and stores structured payload in metadata.
  *     tags: [Customer - Orders]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [pickup, dropoff, packageInfo, packageSize, urgency]
- *             properties:
- *               pickup:
- *                 $ref: '#/components/schemas/DispatchLocation'
- *               dropoff:
- *                 $ref: '#/components/schemas/DispatchLocation'
- *               packageInfo:
- *                 $ref: '#/components/schemas/DispatchPackageInfo'
- *               packageSize:
- *                 type: string
- *                 enum: [SMALL, MEDIUM, LARGE]
- *                 example: SMALL
- *               urgency:
- *                 type: string
- *                 enum: [STANDARD, EXPRESS, SAME_DAY]
- *                 example: STANDARD
- *               note:
- *                 type: string
- *                 example: "Handle with care"
- *               tipAmount:
- *                 type: number
- *                 example: 0
+ *             $ref: '#/components/schemas/DispatchCreateRequest'
  *     responses:
  *       201:
  *         description: Dispatch order created successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Dispatch order created successfully"
- *                 data:
- *                   $ref: '#/components/schemas/Order'
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Order'
  *       400:
  *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiErrorResponse'
  *       401:
  *         description: Unauthorized
  *       500:
@@ -181,68 +366,25 @@
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [pickup, dropoff, packageInfo, packageSize, urgency]
- *             properties:
- *               pickup:
- *                 $ref: '#/components/schemas/DispatchLocation'
- *               dropoff:
- *                 $ref: '#/components/schemas/DispatchLocation'
- *               packageInfo:
- *                 $ref: '#/components/schemas/DispatchPackageInfo'
- *               packageSize:
- *                 type: string
- *                 enum: [SMALL, MEDIUM, LARGE]
- *                 example: SMALL
- *               urgency:
- *                 type: string
- *                 enum: [STANDARD, EXPRESS, SAME_DAY]
- *                 example: STANDARD
+ *             $ref: '#/components/schemas/DispatchEstimateRequest'
  *     responses:
  *       200:
  *         description: Dispatch estimate generated
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Dispatch estimate generated"
- *                 data:
- *                   type: object
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
  *                   properties:
- *                     serviceType:
- *                       type: string
- *                       example: "DISPATCH"
- *                     currency:
- *                       type: string
- *                       example: "NGN"
- *                     amount:
- *                       type: number
- *                       example: 3450
- *                     distanceKm:
- *                       type: number
- *                       example: 7.2
- *                     etaMinutes:
- *                       type: integer
- *                       example: 17
- *                     breakdown:
- *                       type: object
- *                       properties:
- *                         packageSize:
- *                           type: string
- *                           example: "SMALL"
- *                         urgency:
- *                           type: string
- *                           example: "STANDARD"
- *                         packageInfo:
- *                           $ref: '#/components/schemas/DispatchPackageInfo'
+ *                     data:
+ *                       $ref: '#/components/schemas/DispatchEstimateResponseData'
  *       400:
  *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiErrorResponse'
  *       500:
  *         description: Internal server error
  */
@@ -255,45 +397,27 @@
  *     description: Allows a customer to create a PARK_N_GO order.
  *     tags: [Customer - Orders]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [currentAddress, newAddress, movingDate, houseSize, serviceType, contactPhone, estimatedFee]
- *             properties:
- *               currentAddress:
- *                 type: string
- *                 example: "12 Allen Ave, Ikeja"
- *               newAddress:
- *                 type: string
- *                 example: "55 Admiralty Way, Lekki"
- *               movingDate:
- *                 type: string
- *                 format: date-time
- *               houseSize:
- *                 type: string
- *                 example: "2-BEDROOM"
- *               serviceType:
- *                 type: string
- *                 example: "MOVING"
- *               estimatedItems:
- *                 type: string
- *                 example: "3 boxes, 1 TV, 1 table"
- *               contactPhone:
- *                 type: string
- *                 example: "+2348012345678"
- *               notes:
- *                 type: string
- *                 example: "Fragile items included"
- *               estimatedFee:
- *                 type: number
- *                 example: 25000
+ *             $ref: '#/components/schemas/ParkNgoCreateRequest'
  *     responses:
  *       201:
  *         description: Park N Go order created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Validation error
  *       401:
  *         description: Unauthorized
  *       500:
@@ -308,44 +432,27 @@
  *     description: Allows a customer to request waste pickup service.
  *     tags: [Customer - Orders]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [pickupAddress, wasteTypes, quantity, preferredPickupTime, estimatedFee]
- *             properties:
- *               pickupAddress:
- *                 type: string
- *                 example: "12 Allen Ave, Ikeja"
- *               wasteTypes:
- *                 type: array
- *                 items:
- *                   type: string
- *                 example: ["PLASTIC", "PAPER"]
- *               estimatedWeight:
- *                 type: number
- *                 example: 12.5
- *               quantity:
- *                 type: number
- *                 example: 3
- *               condition:
- *                 type: string
- *                 example: "BAGGED"
- *               preferredPickupTime:
- *                 type: string
- *                 format: date-time
- *               notes:
- *                 type: string
- *                 example: "Call on arrival"
- *               estimatedFee:
- *                 type: number
- *                 example: 5000
+ *             $ref: '#/components/schemas/WastePickupCreateRequest'
  *     responses:
  *       201:
  *         description: Waste pickup request created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Validation error
  *       401:
  *         description: Unauthorized
  *       500:
@@ -360,27 +467,26 @@
  *     description: Returns order details for customer, assigned driver, or admin (based on access control).
  *     tags: [Customer - Orders]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: orderId
  *         required: true
  *         schema:
  *           type: string
+ *         example: "ckx123abc456"
  *     responses:
  *       200:
- *         description: Order fetched successfully
+ *         description: Order fetched
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   $ref: '#/components/schemas/Order'
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Order'
  *       401:
  *         description: Unauthorized
  *       403:
@@ -395,22 +501,30 @@
  * @swagger
  * /api/customer/orders:
  *   get:
- *     summary: List customer orders
- *     description: Returns a paginated list of orders for the authenticated customer (admin may see all if enabled).
+ *     summary: List my orders (customer) / list orders (admin)
+ *     description: Returns a paginated list of orders. Customer sees only their own orders; Admin can optionally filter by customerId.
  *     tags: [Customer - Orders]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
- *           example: PENDING
+ *           enum: [PENDING, ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED]
+ *         example: PENDING
  *       - in: query
  *         name: serviceType
  *         schema:
  *           type: string
- *           example: DISPATCH
+ *           enum: [DISPATCH, PARK_N_GO, WASTE_PICKUP, RIDE_BOOKING]
+ *         example: DISPATCH
+ *       - in: query
+ *         name: customerId
+ *         description: "Admin-only filter"
+ *         schema:
+ *           type: string
+ *         example: "ckxCustomerId123"
  *       - in: query
  *         name: page
  *         schema:
@@ -424,6 +538,15 @@
  *     responses:
  *       200:
  *         description: Orders fetched
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/PaginatedOrders'
  *       401:
  *         description: Unauthorized
  *       403:
@@ -440,22 +563,34 @@
  *     description: Allows a customer to cancel their order only if the status is still PENDING.
  *     tags: [Customer - Orders]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: orderId
  *         required: true
  *         schema:
  *           type: string
+ *         example: "ckx123abc456"
  *     responses:
  *       200:
  *         description: Order cancelled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Order'
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Forbidden
+ *       404:
+ *         description: Order not found
  *       409:
- *         description: Order cannot be cancelled (not found or not pending)
+ *         description: Order cannot be cancelled (only pending orders can be cancelled)
  *       500:
  *         description: Internal server error
  */
