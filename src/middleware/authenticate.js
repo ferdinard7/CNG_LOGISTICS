@@ -31,7 +31,8 @@ export const authenticate = async (req, res, next) => {
 
     req.user = user;
     next();
-  } catch {
+  } catch(err) {
+    console.error("JWT VERIFY ERROR:", err.message);
     return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
   }
 };
