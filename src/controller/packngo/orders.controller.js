@@ -450,3 +450,163 @@ export const truckCompleteOrder = async (req, res) => {
       .json({ success: false, message: "Internal server error" });
   }
 };
+
+export const driverWallet = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!DRIVER_ROLES.has(req.user.role)) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Only drivers can access wallet",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, walletBalance: true },
+    });
+
+    const txs = await prisma.walletTransaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        balanceBefore: true,
+        balanceAfter: true,
+        orderId: true,
+        withdrawalId: true,
+        note: true,
+        createdAt: true,
+      },
+    });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Wallet fetched",
+      data: {
+        balance: user?.walletBalance != null ? Number(user.walletBalance) : 0,
+        transactions: txs.map((t) => ({
+          id: t.id,
+          type: t.type,
+          amount: Number(t.amount),
+          balanceBefore: Number(t.balanceBefore),
+          balanceAfter: Number(t.balanceAfter),
+          orderId: t.orderId,
+          withdrawalId: t.withdrawalId,
+          note: t.note,
+          createdAt: t.createdAt,
+        })),
+      },
+    });
+  } catch (err) {
+    logger.error("driverWallet error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const driverActiveOrders = async (req, res) => {
+  try {
+    const driverId = req.user?.id;
+    const { serviceType } = req.query;
+
+    if (!driverId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!DRIVER_ROLES.has(req.user.role)) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Only drivers can view active orders",
+      });
+    }
+
+    const where = {
+      driverId,
+      status: { in: ["ASSIGNED", "IN_PROGRESS"] },
+      ...(serviceType ? { serviceType } : {}),
+    };
+
+    const [items, activeCount, me] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        orderBy: { acceptedAt: "desc" },
+        include: {
+          customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        },
+      }),
+      prisma.order.count({
+        where: { driverId, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
+      }),
+      prisma.user.findUnique({
+        where: { id: driverId },
+        select: { isOnline: true, availabilityStatus: true, maxActiveOrders: true },
+      }),
+    ]);
+
+    const max = me?.maxActiveOrders ?? 1;
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Active orders fetched",
+      data: {
+        driverState: {
+          isOnline: !!me?.isOnline,
+          availabilityStatus: me?.availabilityStatus || "OFFLINE",
+          activeOrdersCount: activeCount,
+          maxActiveOrders: max,
+          canAcceptMore: !!me?.isOnline && activeCount < max,
+        },
+        items: items.map((o) => ({
+          id: o.id,
+          orderCode: o.orderCode,
+          serviceType: o.serviceType,
+          status: o.status,
+
+          pickupAddress: o.pickupAddress,
+          deliveryAddress: o.deliveryAddress,
+          pickupLat: o.pickupLat,
+          pickupLng: o.pickupLng,
+          deliveryLat: o.deliveryLat,
+          deliveryLng: o.deliveryLng,
+
+          distanceKm: o.distanceKm,
+          etaMinutes: o.etaMinutes,
+
+          amount: o.amount != null ? Number(o.amount) : 0,
+          tipAmount: o.tipAmount != null ? Number(o.tipAmount) : 0,
+          currency: o.currency,
+
+          acceptedAt: o.acceptedAt,
+          startedAt: o.startedAt,
+
+          customer: o.customer
+            ? {
+                id: o.customer.id,
+                name: `${o.customer.firstName} ${o.customer.lastName}`,
+                phone: o.customer.phone,
+              }
+            : null,
+
+          meta: o.metadata || null,
+        })),
+      },
+    });
+  } catch (err) {
+    logger.error("driverActiveOrders error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticate } from "../../middleware/auth.middleware.js";
+import { authenticate } from "../../middleware/authenticate.js";
 import { getMyWallet, requestWithdrawal, myWithdrawals } from "../../controller/rider/wallet.controller.js";
 
 const router = express.Router();
