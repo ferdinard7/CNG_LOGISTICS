@@ -7,7 +7,8 @@ import {
   riderStartOrder,
   riderCompleteOrder,
   riderGetOrderDetails,
-  riderWallet
+  riderWallet,
+  driverCompletedOrders
 } from "../../controller/rider/orders.controller.js";
 import { requireKycApproved } from "../../middleware/requireKycApproved.js";
 
@@ -26,5 +27,7 @@ router.patch("/:orderId/start", requireKycApproved, riderStartOrder);
 router.patch("/:orderId/complete", requireKycApproved, riderCompleteOrder);
 
 router.get("/wallet",  requireKycApproved, riderWallet);
+
+router.get("/completed", requireKycApproved, driverCompletedOrders);
 
 export default router;

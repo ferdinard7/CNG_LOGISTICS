@@ -602,3 +602,85 @@ export const riderWallet = async (req, res) => {
     });
   }
 };
+
+export const driverCompletedOrders = async (req, res) => {
+  try {
+    const driverId = req.user?.id;
+
+    if (!driverId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!DRIVER_ROLES.has(req.user.role)) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Only drivers can access completed orders",
+      });
+    }
+
+    const { serviceType, page = 1, limit = 20 } = req.query;
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = {
+      driverId,
+      status: "COMPLETED",
+      ...(serviceType ? { serviceType } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { completedAt: "desc" },
+        include: {
+          customer: { select: { firstName: true, lastName: true, phone: true } },
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Completed orders fetched",
+      data: {
+        items: items.map((o) => ({
+          id: o.id,
+          orderCode: o.orderCode,
+          serviceType: o.serviceType,
+          status: o.status,
+
+          pickupAddress: o.pickupAddress,
+          deliveryAddress: o.deliveryAddress,
+
+          amount: o.amount != null ? Number(o.amount) : null,
+          tipAmount: o.tipAmount != null ? Number(o.tipAmount) : null,
+          currency: o.currency,
+
+          // if you added payout fields on Order, expose them for rider UI
+          isPayoutProcessed: o.isPayoutProcessed ?? false,
+          payoutAmount: o.payoutAmount != null ? Number(o.payoutAmount) : null,
+          payoutProcessedAt: o.payoutProcessedAt || null,
+
+          customerName: o.customer ? `${o.customer.firstName} ${o.customer.lastName}` : null,
+          customerPhone: o.customer?.phone || null,
+
+          completedAt: o.completedAt,
+          createdAt: o.createdAt,
+        })),
+        total,
+        page: pageNum,
+        limit: limitNum,
+      },
+    });
+  } catch (err) {
+    logger.error("driverCompletedOrders error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
