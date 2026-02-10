@@ -179,3 +179,58 @@ export const adminDeactivateUser = async (req, res) => {
     });
   }
 };
+
+export const adminGetUserProfile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        kycProfile: true,
+        _count: {
+          select: {
+            customerOrders: true,
+            driverOrders: true,
+            walletTransactions: true,
+            withdrawals: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // sanitize + normalize Decimal fields
+    const { passwordHash, ...safe } = user;
+
+    const data = {
+      ...safe,
+      walletBalance: safe.walletBalance != null ? Number(safe.walletBalance) : 0,
+      kycProfile: safe.kycProfile || null,
+      stats: {
+        customerOrdersCount: user._count.customerOrders,
+        driverOrdersCount: user._count.driverOrders,
+        walletTransactionsCount: user._count.walletTransactions,
+        withdrawalsCount: user._count.withdrawals,
+      },
+    };
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "User profile fetched",
+      data,
+    });
+  } catch (err) {
+    logger.error("adminGetUserProfile error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

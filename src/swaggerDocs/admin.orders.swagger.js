@@ -2,7 +2,7 @@
  * @swagger
  * tags:
  *   - name: Admin Orders
- *     description: Admin order management (list, details, status updates, assign driver, eligible drivers, waste pickup accept)
+ *     description: Admin order management (list, details, status updates, assign driver, eligible drivers, waste pickup accept, payouts)
  */
 
 /**
@@ -43,13 +43,18 @@
  *           enum: [DISPATCH, PARK_N_GO, WASTE_PICKUP, RIDE_BOOKING]
  *           example: PARK_N_GO
  *         customer: { type: string, nullable: true, example: "John Doe" }
- *         driver: { type: string, nullable: true, example: "Jane Rider" }
+ *         driver: { type: string, nullable: true, example: "Jane Driver" }
  *         amount: { type: number, nullable: true, example: 2500 }
  *         status:
  *           type: string
  *           enum: [PENDING, ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED]
- *           example: PENDING
+ *           example: COMPLETED
  *         date: { type: string, format: date-time }
+ *
+ *         isPayoutProcessed: { type: boolean, example: false }
+ *         payoutAmount: { type: number, nullable: true, example: 2100 }
+ *         payoutProcessedAt: { type: string, format: date-time, nullable: true }
+ *         canPay: { type: boolean, example: true }
  *
  *     PaginatedAdminOrders:
  *       type: object
@@ -57,13 +62,13 @@
  *         items:
  *           type: array
  *           items: { $ref: "#/components/schemas/AdminOrderListItem" }
- *         total: { type: integer, example: 120 }
- *         page: { type: integer, example: 1, minimum: 1  }
- *         limit: { type: integer, example: 20, minimum: 1, maximum: 50  }
+ *         total: { type: number, example: 120 }
+ *         page: { type: number, example: 1 }
+ *         limit: { type: number, example: 20 }
  *
  *     AdminOrderDetails:
  *       type: object
- *       description: Full order returned by Prisma include(customer, driver)
+ *       description: Order details (includes customer + driver) + payout fields for UI
  *       properties:
  *         id: { type: string }
  *         orderCode: { type: string }
@@ -75,16 +80,29 @@
  *           enum: [PENDING, ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED]
  *         amount: { type: number, example: 2500 }
  *         currency: { type: string, example: "NGN" }
+ *         tipAmount: { type: number, nullable: true, example: 200 }
+ *         platformFee: { type: number, nullable: true, example: 375 }
+ *         driverEarning: { type: number, nullable: true, example: 2125 }
+ *
  *         customerId: { type: string }
  *         driverId: { type: string, nullable: true }
+ *
  *         pickupAddress: { type: string, nullable: true }
  *         deliveryAddress: { type: string, nullable: true }
- *         metadata: { type: object, nullable: true, additionalProperties: true }
+ *         metadata: { type: object, nullable: true }
+ *
  *         acceptedAt: { type: string, format: date-time, nullable: true }
  *         startedAt: { type: string, format: date-time, nullable: true }
  *         completedAt: { type: string, format: date-time, nullable: true }
  *         createdAt: { type: string, format: date-time }
  *         updatedAt: { type: string, format: date-time }
+ *
+ *         isPayoutProcessed: { type: boolean, example: false }
+ *         payoutAmount: { type: number, nullable: true, example: 2325 }
+ *         payoutProcessedAt: { type: string, format: date-time, nullable: true }
+ *         payoutProcessedBy: { type: string, nullable: true }
+ *         canPay: { type: boolean, example: true }
+ *
  *         customer:
  *           type: object
  *           nullable: true
@@ -142,9 +160,16 @@
  *         items:
  *           type: array
  *           items: { $ref: "#/components/schemas/EligibleDriver" }
- *         total: { type: integer, example: 120 }
- *         page: { type: integer, example: 1, minimum: 1 }
- *         limit: { type: integer, example: 20, minimum: 1, maximum: 50 }
+ *         total: { type: number, example: 60 }
+ *         page: { type: number, example: 1 }
+ *         limit: { type: number, example: 20 }
+ *
+ *     AdminPayDriverResponse:
+ *       type: object
+ *       properties:
+ *         order: { $ref: "#/components/schemas/AdminOrderDetails" }
+ *         payoutAmount: { type: number, example: 2325 }
+ *         driverWalletBalance: { type: number, example: 15000 }
  */
 
 /**
@@ -198,7 +223,8 @@
  *     security: [{ bearerAuth: [] }]
  *     summary: List eligible drivers for assignment
  *     description: |
- *       Returns KYC-approved drivers filtered by serviceType/role and availabilityStatus, and also enforces capacity (activeOrdersCount < maxActiveOrders).
+ *       Returns KYC-approved drivers filtered by serviceType/role and availabilityStatus,
+ *       and enforces capacity (activeOrdersCount < maxActiveOrders).
  *     parameters:
  *       - in: query
  *         name: serviceType
@@ -215,10 +241,10 @@
  *         schema: { type: boolean, example: false }
  *       - in: query
  *         name: page
- *         schema: { type: integer, example: 1, minimum: 1  }
+ *         schema: { type: number, example: 1 }
  *       - in: query
  *         name: limit
- *         schema: { type: integer, example: 20, minimum: 1, maximum: 50  }
+ *         schema: { type: number, example: 20 }
  *     responses:
  *       200:
  *         description: Eligible drivers fetched
@@ -242,7 +268,7 @@
  *     tags: [Admin Orders]
  *     security: [{ bearerAuth: [] }]
  *     summary: Accept a waste pickup request (admin)
- *     description: Changes a WASTE_PICKUP order from PENDING to ASSIGNED and generates a wasteRequestId in metadata.
+ *     description: Changes a WASTE_PICKUP order from PENDING to ASSIGNED and generates wasteRequestId in metadata.
  *     parameters:
  *       - in: path
  *         name: orderId
@@ -298,7 +324,7 @@
  *     summary: Update order status (admin)
  *     description: |
  *       - Admin can set COMPLETED only for WASTE_PICKUP.
- *       - For DISPATCH/PARK_N_GO/RIDE_BOOKING: driver must complete (wallet credit logic).
+ *       - For DISPATCH/PARK_N_GO/RIDE_BOOKING: driver completes (then admin pays via /pay).
  *       - Finalized orders (COMPLETED/CANCELLED) cannot be updated.
  *     parameters:
  *       - in: path
@@ -356,4 +382,37 @@
  *       400: { description: Bad request, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
  *       404: { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
  *       409: { description: Conflict, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+ */
+
+/**
+ * @swagger
+ * /api/admin/orders/{orderId}/pay:
+ *   patch:
+ *     tags: [Admin Orders]
+ *     security: [{ bearerAuth: [] }]
+ *     summary: Pay driver for a completed order (admin)
+ *     description: |
+ *       Credits the driver's wallet for a COMPLETED order (payout = driverEarning + tipAmount),
+ *       and marks the order payout fields (isPayoutProcessed, payoutAmount, payoutProcessedAt, payoutProcessedBy).
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Driver credited successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: "#/components/schemas/ApiSuccess"
+ *                 - type: object
+ *                   properties:
+ *                     data: { $ref: "#/components/schemas/AdminPayDriverResponse" }
+ *       400: { description: Bad request, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+ *       401: { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+ *       403: { description: Admin access required, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+ *       404: { description: Order not found, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+ *       409: { description: Conflict (not completed/already paid), content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
  */

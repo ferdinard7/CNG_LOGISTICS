@@ -29,7 +29,19 @@ export const adminListOrders = async (req, res) => {
         skip,
         take: limitNum,
         orderBy: { createdAt: "desc" },
-        include: {
+        select: {
+          id: true,
+          orderCode: true,
+          serviceType: true,
+          amount: true,
+          status: true,
+          createdAt: true,
+
+          // ✅ payout tracking
+          isPayoutProcessed: true,
+          payoutAmount: true,
+          payoutProcessedAt: true,
+
           customer: { select: { id: true, firstName: true, lastName: true } },
           driver: { select: { id: true, firstName: true, lastName: true, role: true } },
         },
@@ -50,6 +62,14 @@ export const adminListOrders = async (req, res) => {
           amount: o.amount != null ? Number(o.amount) : null,
           status: o.status,
           date: o.createdAt,
+
+          // ✅ payout info for UI
+          isPayoutProcessed: !!o.isPayoutProcessed,
+          payoutAmount: o.payoutAmount != null ? Number(o.payoutAmount) : null,
+          payoutProcessedAt: o.payoutProcessedAt || null,
+
+          // helpful: show if Pay button should appear
+          canPay: o.status === "COMPLETED" && !o.isPayoutProcessed && !!o.driver,
         })),
         total,
         page: pageNum,
@@ -78,7 +98,25 @@ export const adminGetOrder = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Order not found" });
     }
 
-    return res.status(StatusCodes.OK).json({ success: true, message: "Order fetched", data: order });
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Order fetched",
+      data: {
+        ...order,
+        amount: order.amount != null ? Number(order.amount) : null,
+        tipAmount: order.tipAmount != null ? Number(order.tipAmount) : null,
+        platformFee: order.platformFee != null ? Number(order.platformFee) : null,
+        driverEarning: order.driverEarning != null ? Number(order.driverEarning) : null,
+
+        // ✅ payout info for UI
+        isPayoutProcessed: !!order.isPayoutProcessed,
+        payoutAmount: order.payoutAmount != null ? Number(order.payoutAmount) : null,
+        payoutProcessedAt: order.payoutProcessedAt || null,
+        payoutProcessedBy: order.payoutProcessedBy || null,
+
+        canPay: order.status === "COMPLETED" && !order.isPayoutProcessed && !!order.driverId,
+      },
+    });
   } catch (err) {
     logger.error("adminGetOrder error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
@@ -513,6 +551,115 @@ export const adminAcceptWastePickup = async (req, res) => {
     });
   } catch (err) {
     logger.error("adminAcceptWastePickup error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
+export const adminPayDriverForOrder = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const { orderId } = req.params;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          orderCode: true,
+          status: true,
+          driverId: true,
+          driverEarning: true,
+          tipAmount: true,
+          isPayoutProcessed: true,
+        },
+      });
+
+      if (!order) return { error: "NOT_FOUND" };
+      if (order.status !== "COMPLETED") return { error: "NOT_COMPLETED" };
+      if (!order.driverId) return { error: "NO_DRIVER" };
+      if (order.isPayoutProcessed) return { error: "ALREADY_PAID" };
+
+      // extra safety: prevent double-pay via unique WalletTransaction(orderId)
+      const existingTx = await tx.walletTransaction.findUnique({
+        where: { orderId },
+        select: { id: true },
+      });
+      if (existingTx) return { error: "ALREADY_PAID" };
+
+      const earning = order.driverEarning != null ? Number(order.driverEarning) : 0;
+      const tip = order.tipAmount != null ? Number(order.tipAmount) : 0;
+      const payout = Number((earning + tip).toFixed(2));
+
+      const driver = await tx.user.findUnique({
+        where: { id: order.driverId },
+        select: { id: true, walletBalance: true, isActive: true },
+      });
+
+      if (!driver || !driver.isActive) return { error: "INVALID_DRIVER" };
+
+      const before = driver.walletBalance != null ? Number(driver.walletBalance) : 0;
+      const after = Number((before + payout).toFixed(2));
+
+      await tx.user.update({
+        where: { id: driver.id },
+        data: { walletBalance: after },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: driver.id,
+          type: "CREDIT",
+          amount: payout,
+          balanceBefore: before,
+          balanceAfter: after,
+          orderId,
+          note: `Admin payout for order ${order.orderCode}`,
+        },
+      });
+
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          isPayoutProcessed: true,
+          payoutProcessedAt: new Date(),
+          payoutProcessedBy: adminId,
+          payoutAmount: payout,
+        },
+      });
+
+      return { updatedOrder, payout, after };
+    });
+
+    if (result.error === "NOT_FOUND") {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Order not found" });
+    }
+    if (result.error === "NOT_COMPLETED") {
+      return res.status(StatusCodes.CONFLICT).json({ success: false, message: "Order is not completed yet" });
+    }
+    if (result.error === "NO_DRIVER") {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Order has no driver assigned" });
+    }
+    if (result.error === "ALREADY_PAID") {
+      return res.status(StatusCodes.CONFLICT).json({ success: false, message: "Order payout already processed" });
+    }
+    if (result.error === "INVALID_DRIVER") {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid or inactive driver" });
+    }
+
+    logger.info("Admin payout processed", { orderId, payout: result.payout, adminId });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Driver credited successfully",
+      data: {
+        order: result.updatedOrder,
+        payoutAmount: result.payout,
+        driverWalletBalance: result.after,
+      },
+    });
+  } catch (err) {
+    logger.error("adminPayDriverForOrder error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
   }
 };

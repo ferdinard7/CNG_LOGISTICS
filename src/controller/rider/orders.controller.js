@@ -399,6 +399,7 @@ export const riderCompleteOrder = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Order not found" });
     }
 
+    // Allow idempotent call when already completed
     if (!["ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(order.status)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -412,55 +413,37 @@ export const riderCompleteOrder = async (req, res) => {
     const feePercent = Number(process.env.PLATFORM_FEE_PERCENT || 15);
     const platformFee = Number(((amount * feePercent) / 100).toFixed(2));
     const driverEarning = Number((amount - platformFee).toFixed(2));
-    const creditAmount = Number((driverEarning + tipAmount).toFixed(2));
+
+    // what admin will pay later
+    const payoutAmount = Number((driverEarning + tipAmount).toFixed(2));
 
     const result = await prisma.$transaction(async (tx) => {
       const me = await tx.user.findUnique({
         where: { id: driverId },
-        select: { walletBalance: true, isOnline: true, maxActiveOrders: true },
+        select: { isOnline: true, maxActiveOrders: true },
       });
 
       const max = me?.maxActiveOrders ?? 1;
 
-      // mark completed if not yet completed (safe)
+      // Mark completed if not yet completed
       const completedOrder =
         order.status === "COMPLETED"
           ? await tx.order.findUnique({ where: { id: orderId } })
           : await tx.order.update({
               where: { id: orderId },
-              data: { status: "COMPLETED", completedAt: new Date(), platformFee, driverEarning },
+              data: {
+                status: "COMPLETED",
+                completedAt: new Date(),
+                platformFee,
+                driverEarning,
+
+                // ✅ payout is now admin-controlled
+                isPayoutProcessed: false,
+                payoutAmount,
+                payoutProcessedAt: null,
+                payoutProcessedBy: null,
+              },
             });
-
-      // prevent double credit (wallet tx unique by orderId)
-      const existingTx = await tx.walletTransaction.findUnique({
-        where: { orderId },
-        select: { id: true },
-      });
-
-      let credited = false;
-      let walletBalanceAfter = me?.walletBalance != null ? Number(me.walletBalance) : 0;
-
-      if (!existingTx) {
-        const before = me?.walletBalance != null ? Number(me.walletBalance) : 0;
-        const after = Number((before + creditAmount).toFixed(2));
-
-        await tx.user.update({ where: { id: driverId }, data: { walletBalance: after } });
-
-        await tx.walletTransaction.create({
-          data: {
-            userId: driverId,
-            type: "CREDIT",
-            amount: creditAmount,
-            balanceBefore: before,
-            balanceAfter: after,
-            orderId,
-            note: `Earning from order ${completedOrder.orderCode}`,
-          },
-        });
-
-        credited = true;
-        walletBalanceAfter = after;
-      }
 
       // recompute availability AFTER completion (completed is not active)
       const remainingActive = await tx.order.count({
@@ -477,20 +460,17 @@ export const riderCompleteOrder = async (req, res) => {
 
       return {
         order: completedOrder,
-        credited,
-        creditAmount,
-        walletBalanceAfter,
         availabilityStatus,
         remainingActive,
         max,
       };
     });
 
-    logger.info("Order completed by driver", { orderId, driverId, ...result });
+    logger.info("Order completed by driver (payout pending)", { orderId, driverId, ...result });
 
     return res.status(StatusCodes.OK).json({
       success: true,
-      message: "Order completed",
+      message: "Order completed (awaiting admin payout)",
       data: {
         ...result.order,
         earnings: {
@@ -499,14 +479,15 @@ export const riderCompleteOrder = async (req, res) => {
           feePercent,
           platformFee,
           driverEarning,
-          creditedAmount: creditAmount,
-          credited: result.credited,
+
+          // ✅ what admin will credit later
+          payoutAmount,
+          payoutProcessed: !!result.order?.isPayoutProcessed,
         },
         driverState: {
           availabilityStatus: result.availabilityStatus,
           activeOrdersCount: result.remainingActive,
           maxActiveOrders: result.max,
-          walletBalanceAfter: result.walletBalanceAfter,
         },
       },
     });
@@ -518,7 +499,6 @@ export const riderCompleteOrder = async (req, res) => {
     });
   }
 };
-
 export const riderGetOrderDetails = async (req, res) => {
   try {
     const riderId = req.user.id;
