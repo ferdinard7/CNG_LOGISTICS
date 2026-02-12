@@ -119,7 +119,7 @@ export const adminGetOrder = async (req, res) => {
     });
   } catch (err) {
     logger.error("adminGetOrder error", { err });
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: `Internal server error ${err}` });
   }
 };
 
