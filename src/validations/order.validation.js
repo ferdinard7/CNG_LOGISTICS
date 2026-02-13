@@ -111,18 +111,48 @@ export const createParkNgoOrderSchema = Joi.object({
   estimatedFee: Joi.number().min(0).required(),
 }).options({ abortEarly: false });
 
-// export const estimateDispatchOrderSchema = Joi.object({
-//   pickupAddress: Joi.string().trim().min(3).required(),
-//   deliveryAddress: Joi.string().trim().min(3).required(),
+export const createWastePickupOrderSchema = Joi.object({
+  pickupAddress: Joi.string().trim().min(5).max(300).required(),
 
-//   pickupLat: Joi.number().min(-90).max(90).optional(),
-//   pickupLng: Joi.number().min(-180).max(180).optional(),
-//   deliveryLat: Joi.number().min(-90).max(90).optional(),
-//   deliveryLng: Joi.number().min(-180).max(180).optional(),
+  wasteTypes: Joi.array()
+    .items(
+      Joi.string().valid(
+        "PLASTIC",
+        "PAPER",
+        "GLASS",
+        "METAL",
+        "ELECTRONICS",
+        "TEXTILES"
+      )
+    )
+    .min(1)
+    .required(),
 
-//   itemDetails: Joi.string().trim().min(3).max(2000).required(),
-//   packageSize: Joi.string().valid("SMALL", "MEDIUM", "LARGE").required(),
-//   urgency: Joi.string().valid("STANDARD", "EXPRESS", "SAME_DAY").required(),
+  estimatedWeight: Joi.number()
+    .min(5) // 🔥 matches UI rule (minimum 5kg)
+    .max(100000)
+    .required(),
 
-//   deliveryTime: Joi.date().iso().optional(),
-// });
+  quantity: Joi.string()
+    .valid(
+      "SMALL",       // 1–2 bags
+      "MEDIUM",      // 3–5 bags
+      "LARGE",       // 6–10 bags
+      "EXTRA_LARGE"  // 10+ bags
+    )
+    .required(),
+
+  condition: Joi.string()
+    .valid(
+      "CLEAN_SORTED",
+      "MIXED_CLEAN",
+      "NEEDS_SORTING"
+    )
+    .required(),
+
+  preferredPickupTime: Joi.date().iso().optional(),
+
+  notes: Joi.string().trim().allow("").max(1000).optional(),
+
+  estimatedFee: Joi.number().min(0).optional(), // since buy-back may pay customer
+});

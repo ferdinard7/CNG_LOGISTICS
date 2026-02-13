@@ -8,6 +8,7 @@ import logger from "./config/logger.js";
 
 import authRoutes from "./route/auth.route.js";
 import kycRoutes from "./route/kyc.route.js";
+import walletRoutes from "./route/wallet.route.js";
 import adminKycRoutes from "./route/admin/kyc.route.js";
 import adminRoutes from "./route/admin/index.js";
 import riderRoutes from "./route/rider/index.js";
@@ -47,11 +48,13 @@ swaggerDocs(app, env.port);
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/kyc", kycRoutes);
+app.use("/api/wallet", walletRoutes);
 app.use("/api/rider", riderRoutes);
 app.use("/api/driver", driverRoutes);
 app.use("/api/customer/orders", customerOrderRoutes);
 app.use("/api/admin/kyc", adminKycRoutes);
 app.use("/api/admin", adminRoutes);
+
 
 // ❌ 404 LAST — always
 app.use((req, res) => {
