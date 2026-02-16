@@ -7,9 +7,9 @@ export const adminListKycRequests = async (req, res) => {
     const { status = "PENDING", role, page = 1, limit = 20 } = req.query;
 
     const where = {
-    status,
-     ...(role ? { user: { is: { role } } } : {}),
-      };
+      status,
+      ...(role ? { user: { is: { role } } } : {}),
+    };
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -37,6 +37,7 @@ export const adminListKycRequests = async (req, res) => {
           type: k.user.role, // RIDER / TRUCK_DRIVER / WASTE_DRIVER
           submittedAt: k.updatedAt,
           status: k.status,
+          premblyStatus: k.premblyStatus,
         })),
         total,
         page: Number(page),
@@ -123,6 +124,74 @@ export const adminApproveKyc = async (req, res) => {
   } catch (err) {
     logger.error("adminApproveKyc error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
+  }
+};
+
+/**
+ * Build a safe Prembly verification summary from KycProfile (no raw PII).
+ */
+function buildPremblyVerificationSummary(kyc) {
+  const status = kyc.premblyStatus || null;
+  const responseJson = kyc.premblyResponse;
+  const provider = kyc.nin ? "nin" : kyc.driversLicenseNumber ? "driver_license" : null;
+  const verified = status === "VERIFIED";
+  let message = null;
+  if (responseJson && typeof responseJson === "object") {
+    message = responseJson.message ?? responseJson.detail ?? null;
+  } else if (typeof responseJson === "string") {
+    try {
+      const parsed = JSON.parse(responseJson);
+      message = parsed.message ?? parsed.detail ?? null;
+    } catch {
+      message = "Could not parse Prembly response";
+    }
+  }
+  return {
+    premblyStatus: status,
+    summary: {
+      provider,
+      verified,
+      status,
+      message,
+    },
+  };
+}
+
+export const adminGetPremblyVerification = async (req, res) => {
+  try {
+    const { kycId } = req.params;
+
+    const kyc = await prisma.kycProfile.findUnique({
+      where: { id: kycId },
+      select: {
+        id: true,
+        premblyStatus: true,
+        premblyResponse: true,
+        nin: true,
+        driversLicenseNumber: true,
+      },
+    });
+
+    if (!kyc) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "KYC request not found",
+      });
+    }
+
+    const data = buildPremblyVerificationSummary(kyc);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Prembly verification status fetched",
+      data,
+    });
+  } catch (err) {
+    logger.error("adminGetPremblyVerification error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 

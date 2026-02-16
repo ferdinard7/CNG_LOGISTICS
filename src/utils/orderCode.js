@@ -1,6 +1,16 @@
+/**
+ * Generate unique trackable order code.
+ * Format: CNC-{DP|PNG|WP|RD}-{YYYY}-{8 random alphanumeric}
+ * e.g. CNC-DP-2025-A1B2C3D4, CNC-PNG-2025-X9Y8Z7W6
+ * Used for tracking page - user enters code to monitor order status.
+ */
 export const generateOrderCode = (serviceType) => {
   const year = new Date().getFullYear();
-  const random4 = String(Math.floor(1000 + Math.random() * 9000));
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let randomPart = "";
+  for (let i = 0; i < 8; i++) {
+    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
 
   const prefixMap = {
     DISPATCH: "DP",
@@ -10,7 +20,7 @@ export const generateOrderCode = (serviceType) => {
   };
 
   const prefix = prefixMap[serviceType] || "OD";
-  return `${prefix}-${year}-${random4}`;
+  return `CNC-${prefix}-${year}-${randomPart}`;
 };
 
 export const isPrismaUniqueViolation = (err) => {

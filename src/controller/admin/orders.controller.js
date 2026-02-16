@@ -10,6 +10,11 @@ export const adminListOrders = async (req, res) => {
     const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
     const skip = (pageNum - 1) * limitNum;
 
+    // For DISPATCH and PARK_N_GO: only show orders after payment is successful.
+    // WASTE_PICKUP and RIDE_BOOKING: show all (waste doesn't require upfront payment).
+    const paymentRequiredTypes = ["DISPATCH", "PARK_N_GO"];
+    const needsPaymentFilter = !type || paymentRequiredTypes.includes(type);
+
     const where = {
       ...(type ? { serviceType: type } : {}),
       ...(status ? { status } : {}),
@@ -19,6 +24,15 @@ export const adminListOrders = async (req, res) => {
               ...(from ? { gte: new Date(from) } : {}),
               ...(to ? { lte: new Date(to) } : {}),
             },
+          }
+        : {}),
+      // Only show DISPATCH/PARK_N_GO orders that have been paid
+      ...(needsPaymentFilter
+        ? {
+            OR: [
+              { serviceType: { notIn: paymentRequiredTypes } },
+              { serviceType: { in: paymentRequiredTypes }, paymentStatus: "paid" },
+            ],
           }
         : {}),
     };
@@ -228,7 +242,7 @@ export const adminAssignDriver = async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        select: { id: true, status: true, driverId: true, serviceType: true },
+        select: { id: true, status: true, driverId: true, serviceType: true, paymentStatus: true },
       });
 
       if (!order) return { error: "ORDER_NOT_FOUND" };
@@ -236,6 +250,11 @@ export const adminAssignDriver = async (req, res) => {
       // 🚫 Do not assign for waste pickup
       if (order.serviceType === "WASTE_PICKUP") {
         return { error: "WASTE_NO_ASSIGN" };
+      }
+
+      // For DISPATCH and PARK_N_GO: order must be paid before admin can assign driver
+      if (["DISPATCH", "PARK_N_GO"].includes(order.serviceType) && order.paymentStatus !== "paid") {
+        return { error: "PAYMENT_REQUIRED" };
       }
 
       // MVP: only assign if still pending and unassigned
@@ -319,6 +338,12 @@ export const adminAssignDriver = async (req, res) => {
 
     if (result.error === "ORDER_NOT_FOUND") {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Order not found" });
+    }
+    if (result.error === "PAYMENT_REQUIRED") {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Order must be paid by customer before a driver can be assigned.",
+      });
     }
     if (result.error === "WASTE_NO_ASSIGN") {
       return res.status(StatusCodes.BAD_REQUEST).json({

@@ -2,6 +2,12 @@
  * CUSTOMER ORDERS SWAGGER
  * Mounted at: /api/customer/orders
  * Routes source: orders.route.js
+ *
+ * Payment flow: After creating an order (dispatch, park-n-go, waste-pickup), the customer
+ * pays via the Payment API at /api/v1/payment/* (see Payment tag in Swagger).
+ * - GET /api/v1/payment/methods - list available methods (Paystack, Interswitch)
+ * - POST /api/v1/payment/process - initiate Interswitch payment (amount in kobo)
+ * - POST /api/v1/payment/paystack/initialize - initiate Paystack payment (amount in Naira)
  */
 
 /**
@@ -350,6 +356,38 @@
  *               $ref: '#/components/schemas/ApiErrorResponse'
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /api/customer/orders/track/{orderCode}:
+ *   get:
+ *     summary: Track order by order code (public)
+ *     description: Customer can track order status by entering the order code (e.g. CNC-DP-2025-XXXXXXXX). No auth required.
+ *     tags: [Customer - Orders]
+ *     parameters:
+ *       - in: path
+ *         name: orderCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "CNC-DP-2025-A1B2C3D4"
+ *     responses:
+ *       200:
+ *         description: Order found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Order'
+ *       404:
+ *         description: Order not found for this tracking code
  *       500:
  *         description: Internal server error
  */

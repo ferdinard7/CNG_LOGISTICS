@@ -193,6 +193,10 @@
  *               driversLicenseNumber:
  *                 type: string
  *                 example: "DL-1234567890"
+ *               driverLicenseDob:
+ *                 type: string
+ *                 description: Date of birth on driver's license (YYYY-MM-DD) for Prembly verification
+ *                 example: "1990-05-15"
  *               vehiclePlate:
  *                 type: string
  *                 example: "LND-123XY"

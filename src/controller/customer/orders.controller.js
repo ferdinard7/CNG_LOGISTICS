@@ -352,6 +352,12 @@ export const getOrderDetails = async (req, res) => {
         customer: order.customer,
         driver: order.driver,
 
+        // payment tracking (Interswitch/Paystack)
+        paymentStatus: order.paymentStatus || "pending",
+        paymentReference: order.paymentReference,
+        paymentMethod: order.paymentMethod,
+        paidAt: order.paidAt,
+
         // your structured payload (pickup/dropoff/packageInfo/note/packageSize/urgency...)
         meta: order.metadata || null,
       },
@@ -494,6 +500,7 @@ export const getMyOrders = async (req, res) => {
           amount: o.amount != null ? Number(o.amount) : null,
           tipAmount: o.tipAmount != null ? Number(o.tipAmount) : null,
           currency: o.currency,
+          paymentStatus: o.paymentStatus || "pending",
           pickupAddress: o.pickupAddress,
           deliveryAddress: o.deliveryAddress,
           distanceKm: o.distanceKm,
@@ -509,6 +516,77 @@ export const getMyOrders = async (req, res) => {
     });
   } catch (err) {
     logger.error("getMyOrders error", { err });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+/**
+ * Get order by tracking code (orderCode) - PUBLIC, no auth required.
+ * Used for Tracking page - user enters DP-2025-1234 or PNG-2025-1234 etc.
+ */
+export const getOrderByTrackingCode = async (req, res) => {
+  try {
+    const { orderCode } = req.params;
+    if (!orderCode || !String(orderCode).trim()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Order code is required",
+      });
+    }
+
+    const code = String(orderCode).trim();
+    const order = await prisma.order.findFirst({
+      where: {
+        orderCode: { equals: code, mode: "insensitive" },
+      },
+      include: {
+        customer: {
+          select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+        },
+        driver: {
+          select: { id: true, firstName: true, lastName: true, phone: true, role: true },
+        },
+      },
+    });
+
+    if (!order) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Order not found for this tracking code",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Order found",
+      data: {
+        id: order.id,
+        orderCode: order.orderCode,
+        serviceType: order.serviceType,
+        status: order.status,
+        paymentStatus: order.paymentStatus || "pending",
+        amount: order.amount != null ? Number(order.amount) : null,
+        tipAmount: order.tipAmount != null ? Number(order.tipAmount) : null,
+        currency: order.currency,
+        pickupAddress: order.pickupAddress,
+        deliveryAddress: order.deliveryAddress,
+        distanceKm: order.distanceKm,
+        etaMinutes: order.etaMinutes,
+        acceptedAt: order.acceptedAt,
+        startedAt: order.startedAt,
+        completedAt: order.completedAt,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        customer: order.customer,
+        driver: order.driver,
+        meta: order.metadata || null,
+      },
+    });
+  } catch (err) {
+    logger.error("getOrderByTrackingCode error", { err });
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Internal server error",
