@@ -178,7 +178,10 @@ export const createWastePickupOrder = async (req, res) => {
       });
     }
 
-    const { error, value } = createWastePickupOrderSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = createWastePickupOrderSchema.validate(req.body, {
+      abortEarly: false,
+    });
+
     if (error) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -189,17 +192,20 @@ export const createWastePickupOrder = async (req, res) => {
 
     const {
       pickupAddress,
-      wasteTypes, // array: ["PLASTIC", "PAPER", ...]
-      estimatedWeight, // number (min 5)
-      quantity, // SMALL | MEDIUM | LARGE | EXTRA_LARGE
-      condition, // CLEAN_SORTED | MIXED_CLEAN | NEEDS_SORTING
-      preferredPickupTime, // ISO string (optional)
+      wasteTypes,
+      estimatedWeight,
+      quantity,
+      condition,
+      preferredPickupTime,
       notes,
-      estimatedFee, // optional (buy-back may pay customer; keep for now)
+      estimatedFee,
     } = value;
 
-    // ✅ backend-enforced business rule from your UI
-    const isBuyBackEligible = Number(estimatedWeight) >= 5;
+    // ✅ schema enforces min 5kg already, but keep this for UI display/business logic
+    const isBuyBackEligible = estimatedWeight >= 5;
+
+    // ✅ normalize fee (optional)
+    const amount = estimatedFee != null ? Number(estimatedFee) : 0;
 
     const created = await prisma.order.create({
       data: {
@@ -208,11 +214,9 @@ export const createWastePickupOrder = async (req, res) => {
         status: "PENDING",
         customerId: userId,
 
-        // useful searchable summary
         pickupAddress,
 
-        // optional: keep 0 if you don't want to store anything yet
-        amount: estimatedFee ?? 0,
+        amount,
         currency: "NGN",
 
         metadata: {
@@ -222,17 +226,21 @@ export const createWastePickupOrder = async (req, res) => {
             estimatedWeight,
             quantity,
             condition,
-            preferredPickupTime: preferredPickupTime ? new Date(preferredPickupTime).toISOString() : null,
+            preferredPickupTime: preferredPickupTime
+              ? new Date(preferredPickupTime).toISOString()
+              : null,
             notes: notes || "",
             isBuyBackEligible,
           },
 
-          // admin can fill on accept (or keep null forever if not needed)
+          // Admin can fill later (optional)
           wasteRequestId: null,
         },
       },
       include: {
-        customer: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
+        customer: {
+          select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+        },
       },
     });
 
@@ -243,9 +251,10 @@ export const createWastePickupOrder = async (req, res) => {
     });
   } catch (err) {
     logger.error("createWastePickupOrder error", {
-    message: err?.message,
-    stack: err?.stack,
-      });
+      message: err?.message,
+      stack: err?.stack,
+    });
+
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Internal server error",

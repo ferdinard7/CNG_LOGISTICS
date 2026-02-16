@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import logger from "./config/logger.js";
 
 import authRoutes from "./route/auth.route.js";
+import chatRoutes from "./route/chat.route.js";
 import kycRoutes from "./route/kyc.route.js";
 import walletRoutes from "./route/wallet.route.js";
 import adminKycRoutes from "./route/admin/kyc.route.js";
@@ -49,6 +50,7 @@ swaggerDocs(app, env.port);
 app.use("/api/auth", authRoutes);
 app.use("/api/kyc", kycRoutes);
 app.use("/api/wallet", walletRoutes);
+app.use("/api/chat", chatRoutes);
 app.use("/api/rider", riderRoutes);
 app.use("/api/driver", driverRoutes);
 app.use("/api/customer/orders", customerOrderRoutes);

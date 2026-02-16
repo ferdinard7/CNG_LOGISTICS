@@ -116,43 +116,33 @@ export const createWastePickupOrderSchema = Joi.object({
 
   wasteTypes: Joi.array()
     .items(
-      Joi.string().valid(
-        "PLASTIC",
-        "PAPER",
-        "GLASS",
-        "METAL",
-        "ELECTRONICS",
-        "TEXTILES"
-      )
+      Joi.string()
+        .trim()
+        .valid("PLASTIC", "PAPER", "GLASS", "METAL", "ELECTRONICS", "TEXTILES")
     )
     .min(1)
+    .unique()
     .required(),
 
   estimatedWeight: Joi.number()
-    .min(5) // 🔥 matches UI rule (minimum 5kg)
+    .min(5) // matches UI
     .max(100000)
     .required(),
 
   quantity: Joi.string()
-    .valid(
-      "SMALL",       // 1–2 bags
-      "MEDIUM",      // 3–5 bags
-      "LARGE",       // 6–10 bags
-      "EXTRA_LARGE"  // 10+ bags
-    )
+    .valid("SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE")
     .required(),
 
   condition: Joi.string()
-    .valid(
-      "CLEAN_SORTED",
-      "MIXED_CLEAN",
-      "NEEDS_SORTING"
-    )
+    .valid("CLEAN_SORTED", "MIXED_CLEAN", "NEEDS_SORTING")
     .required(),
 
-  preferredPickupTime: Joi.date().iso().optional(),
+  preferredPickupTime: Joi.date()
+    .iso()
+    .optional()
+    .allow(null, ""),
 
   notes: Joi.string().trim().allow("").max(1000).optional(),
 
-  estimatedFee: Joi.number().min(0).optional(), // since buy-back may pay customer
-});
+  estimatedFee: Joi.number().min(0).optional().default(0),
+}).options({ abortEarly: false });
