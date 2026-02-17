@@ -8,6 +8,11 @@ import logger from "./config/logger.js";
 
 import authRoutes from "./route/auth.route.js";
 import chatRoutes from "./route/chat.route.js";
+import paymentRoutes from "./route/payment.route.js";
+import {
+  paystackWebhook,
+  interswitchWebhook,
+} from "./controller/payment.controller.js";
 import kycRoutes from "./route/kyc.route.js";
 import walletRoutes from "./route/wallet.route.js";
 import adminKycRoutes from "./route/admin/kyc.route.js";
@@ -15,6 +20,7 @@ import adminRoutes from "./route/admin/index.js";
 import riderRoutes from "./route/rider/index.js";
 import driverRoutes from "./route/packngo/index.js";
 import customerOrderRoutes from "./route/customer/orders.route.js";
+import customerDashboardRoutes from "./route/customer/dashboard.route.js";
 import { swaggerDocs } from './utils/swagger.js';
 const app = express();
 
@@ -28,6 +34,11 @@ app.use(
 
 app.use(cookieParser());
 app.use(helmet());
+
+// Payment webhooks need raw body for signature verification - mount BEFORE express.json
+app.post("/api/v1/payment/paystack/webhook", express.raw({ type: "application/json" }), paystackWebhook);
+app.post("/api/v1/payment/interswitch/webhook", express.raw({ type: "application/json" }), interswitchWebhook);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -54,8 +65,10 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/rider", riderRoutes);
 app.use("/api/driver", driverRoutes);
 app.use("/api/customer/orders", customerOrderRoutes);
+app.use("/api/customer/dashboard", customerDashboardRoutes);
 app.use("/api/admin/kyc", adminKycRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/v1/payment", paymentRoutes);
 
 
 // ❌ 404 LAST — always

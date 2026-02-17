@@ -30,6 +30,10 @@
  *         status:
  *           type: string
  *           example: PENDING
+ *         premblyStatus:
+ *           type: string
+ *           description: Prembly verification status (VERIFIED, FAILED, NOT_STARTED)
+ *           example: VERIFIED
  *
  *     RejectKycRequest:
  *       type: object
@@ -140,6 +144,63 @@
  *                   example: KYC request fetched
  *                 data:
  *                   type: object
+ *       404:
+ *         description: KYC request not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /api/admin/kyc/{kycId}/prembly-verification:
+ *   get:
+ *     summary: Get Prembly verification status for a KYC request
+ *     description: Returns Prembly verification status and safe summary (no PII) for admin KYC review.
+ *     tags: [Admin KYC]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: kycId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Prembly verification status fetched
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Prembly verification status fetched
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     premblyStatus:
+ *                       type: string
+ *                       example: VERIFIED
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         provider:
+ *                           type: string
+ *                           example: nin
+ *                         verified:
+ *                           type: boolean
+ *                         status:
+ *                           type: string
+ *                         message:
+ *                           type: string
  *       404:
  *         description: KYC request not found
  *       401:

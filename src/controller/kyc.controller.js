@@ -176,7 +176,7 @@ export const submitRiderKyc = async (req, res) => {
 
           riderKycJson: riderKycJson.motorcycle_kyc,
 
-          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : "FAILED",
+          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : verification.status === "NOT_STARTED" ? "NOT_STARTED" : "FAILED",
           premblyReference: verification.reference,
           premblyPayload: { nin, motorcyclePlate },
           premblyResponse: verification.raw,
@@ -204,7 +204,7 @@ export const submitRiderKyc = async (req, res) => {
 
           riderKycJson: riderKycJson.motorcycle_kyc,
 
-          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : "FAILED",
+          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : verification.status === "NOT_STARTED" ? "NOT_STARTED" : "FAILED",
           premblyReference: verification.reference,
           premblyPayload: { nin, motorcyclePlate },
           premblyResponse: verification.raw,
@@ -260,6 +260,7 @@ export const submitVehicleDriverKyc = async (req, res) => {
     const loadCapacity = String(req.body.loadCapacity || "").trim();
 
     const driversLicenseNumber = String(req.body.driversLicenseNumber || "").trim();
+    const driverLicenseDob = String(req.body.driverLicenseDob || "").trim(); // YYYY-MM-DD for Prembly
     const vehiclePlate = String(req.body.vehiclePlate || "").trim();
 
     const hasValidVehiclePapers = toBool(req.body.has_valid_vehicle_papers);
@@ -274,12 +275,21 @@ export const submitVehicleDriverKyc = async (req, res) => {
       !bodyType ||
       !loadCapacity ||
       !driversLicenseNumber ||
+      !driverLicenseDob ||
       !vehiclePlate
     ) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message:
-          "Missing required fields (vehicleType, vehicleColor, vin, vehicleTrim, bodyType, loadCapacity, driversLicenseNumber, vehiclePlate)",
+          "Missing required fields (vehicleType, vehicleColor, vin, vehicleTrim, bodyType, loadCapacity, driversLicenseNumber, driverLicenseDob, vehiclePlate)",
+      });
+    }
+
+    // driverLicenseDob format: YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(driverLicenseDob)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "driverLicenseDob must be in YYYY-MM-DD format (e.g. 1990-05-15)",
       });
     }
 
@@ -321,10 +331,11 @@ export const submitVehicleDriverKyc = async (req, res) => {
       )
     );
 
-    // Prembly (test)
+    // Prembly driver's license verification (Nigeria FRSC)
     const verification = await verifyTruckDriverWithPrembly({
       driversLicenseNumber,
-      vehiclePlate,
+      driverLicenseDob,
+      driversLicenseFrontBuffer: dlFront.buffer,
     });
 
     const vehicleKycJson = {
@@ -371,6 +382,7 @@ export const submitVehicleDriverKyc = async (req, res) => {
           status: "PENDING",
 
           driversLicenseNumber,
+          driverLicenseDob: driverLicenseDob || null,
           vehiclePlate,
           vehicleColor,
           vin,
@@ -389,9 +401,9 @@ export const submitVehicleDriverKyc = async (req, res) => {
 
           vehicleKycJson: vehicleKycJson.vehicle_kyc,
 
-          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : "FAILED",
+          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : verification.status === "NOT_STARTED" ? "NOT_STARTED" : "FAILED",
           premblyReference: verification.reference,
-          premblyPayload: { driversLicenseNumber, vehiclePlate },
+          premblyPayload: { driversLicenseNumber, driverLicenseDob, vehiclePlate },
           premblyResponse: verification.raw,
           rejectionReason: null,
           reviewedAt: null,
@@ -401,6 +413,7 @@ export const submitVehicleDriverKyc = async (req, res) => {
           status: "PENDING",
 
           driversLicenseNumber,
+          driverLicenseDob: driverLicenseDob || null,
           vehiclePlate,
           vehicleColor,
           vin,
@@ -419,9 +432,9 @@ export const submitVehicleDriverKyc = async (req, res) => {
 
           vehicleKycJson: vehicleKycJson.vehicle_kyc,
 
-          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : "FAILED",
+          premblyStatus: verification.status === "VERIFIED" ? "VERIFIED" : verification.status === "NOT_STARTED" ? "NOT_STARTED" : "FAILED",
           premblyReference: verification.reference,
-          premblyPayload: { driversLicenseNumber, vehiclePlate },
+          premblyPayload: { driversLicenseNumber, driverLicenseDob, vehiclePlate },
           premblyResponse: verification.raw,
           rejectionReason: null,
           reviewedAt: null,

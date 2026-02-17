@@ -40,7 +40,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
 
 export const sendPasswordResetEmail = async ({ to, token }) => {
   const appName = env.appName || "CNG Logistics";
-  const frontendBase = env.frontendBaseUrl || env.appBaseUrl || "http://localhost:5000";
+  const frontendBase = env.frontendBaseUrl || env.appBaseUrl || "https://cng-logistics.onrender.com";
 
   const resetLink = `${frontendBase}/reset-password?token=${encodeURIComponent(token)}`;
   const subject = `${appName} - Reset your password`;

@@ -109,10 +109,24 @@ export const riderAvailableOrders = async (req, res) => {
       });
     }
 
+    // For DISPATCH, PARK_N_GO, RIDE_BOOKING: only show orders that have been paid.
+    // WASTE_PICKUP: no payment required (company picks up, may pay customer).
+    const paymentRequiredTypes = ["DISPATCH", "PARK_N_GO", "RIDE_BOOKING"];
+    const paymentFilter =
+      allowedServiceTypes.length && allowedServiceTypes.some((t) => paymentRequiredTypes.includes(t))
+        ? {
+            OR: [
+              { serviceType: { notIn: paymentRequiredTypes } },
+              { serviceType: { in: paymentRequiredTypes }, paymentStatus: "paid" },
+            ],
+          }
+        : {};
+
     const where = {
       status: "PENDING",
       driverId: null,
       ...serviceFilter,
+      ...paymentFilter,
     };
 
     const feePercent = Number(process.env.PLATFORM_FEE_PERCENT || 15);

@@ -7,10 +7,14 @@ import {
   getOrderDetails,
   estimateDispatchOrder,
   getMyOrders,
-  cancelOrder
+  cancelOrder,
+  getOrderByTrackingCode,
 } from "../../controller/customer/orders.controller.js";
 
 const router = Router();
+
+// Public: track order by orderCode (no auth required)
+router.get("/track/:orderCode", getOrderByTrackingCode);
 
 router.post("/dispatch", authenticate, createDispatchOrder);
 router.post("/park-n-go", authenticate, createParkNgoOrder);

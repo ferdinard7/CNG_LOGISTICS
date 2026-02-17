@@ -19,6 +19,15 @@ export const adminOverviewSummary = async (req, res) => {
     const todayStart = startOfToday();
     const todayEnd = endOfToday();
 
+    // For DISPATCH/PARK_N_GO: only count orders that have been paid
+    const paymentRequiredTypes = ["DISPATCH", "PARK_N_GO"];
+    const paidOrderFilter = {
+      OR: [
+        { serviceType: { notIn: paymentRequiredTypes } },
+        { serviceType: { in: paymentRequiredTypes }, paymentStatus: "paid" },
+      ],
+    };
+
     const [
       totalUsers,
       activeOrders,
@@ -28,10 +37,17 @@ export const adminOverviewSummary = async (req, res) => {
     ] = await Promise.all([
       prisma.user.count(),
       prisma.order.count({
-        where: { status: { in: ["PENDING", "IN_PROGRESS"] } },
+        where: {
+          status: { in: ["PENDING", "ASSIGNED", "IN_PROGRESS"] },
+          ...paidOrderFilter,
+        },
       }),
       prisma.order.aggregate({
-        where: { createdAt: { gte: todayStart, lte: todayEnd }, status: { not: "CANCELLED" } },
+        where: {
+          createdAt: { gte: todayStart, lte: todayEnd },
+          status: { not: "CANCELLED" },
+          ...paidOrderFilter,
+        },
         _sum: { amount: true },
       }),
       prisma.user.count({
@@ -73,7 +89,17 @@ export const adminRecentOrders = async (req, res) => {
   try {
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
 
+    // For DISPATCH/PARK_N_GO: only show orders that have been paid
+    const paymentRequiredTypes = ["DISPATCH", "PARK_N_GO"];
+    const paidOrderFilter = {
+      OR: [
+        { serviceType: { notIn: paymentRequiredTypes } },
+        { serviceType: { in: paymentRequiredTypes }, paymentStatus: "paid" },
+      ],
+    };
+
     const orders = await prisma.order.findMany({
+      where: paidOrderFilter,
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
