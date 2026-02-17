@@ -48,6 +48,19 @@ export const env = {
   // Base URL for callbacks (e.g. https://cng-logistics.onrender.com)
   BASE_URL: process.env.BASE_URL || process.env.APP_BASE_URL,
 
+  // CORS: comma-separated allowed origins (e.g. https://cnclogisticsolutions.com,https://www.cnclogisticsolutions.com)
+  // If not set, defaults to production frontend + localhost for dev
+  CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+    : [
+        "https://cnclogisticsolutions.com",
+        "https://www.cnclogisticsolutions.com",
+        "http://localhost:8081",
+        "http://localhost:5173",
+        "http://127.0.0.1:8081",
+        "http://127.0.0.1:5173",
+      ],
+
   // Prembly identity verification (NIN for riders, driver's license for truck drivers)
   PREMBLY_SECRET_KEY: process.env.PREMBLY_SECRET_KEY,
   PREMBLY_BASE_URL: (process.env.PREMBLY_BASE_URL || "https://api.prembly.com").replace(/;\s*$/, ""),

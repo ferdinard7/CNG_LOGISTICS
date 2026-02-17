@@ -24,10 +24,17 @@ import customerDashboardRoutes from "./route/customer/dashboard.route.js";
 import { swaggerDocs } from './utils/swagger.js';
 const app = express();
 
-// CORS (cookies support)
+// CORS (cookies support) - explicit allowlist for production frontend + localhost dev
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. Postman, server-to-server, webhooks)
+      if (!origin) return callback(null, true);
+      if (env.CORS_ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      callback(null, false); // Reject unknown origins
+    },
     credentials: true,
   })
 );
