@@ -51,4 +51,7 @@ export const env = {
   // Prembly identity verification (NIN for riders, driver's license for truck drivers)
   PREMBLY_SECRET_KEY: process.env.PREMBLY_SECRET_KEY,
   PREMBLY_BASE_URL: (process.env.PREMBLY_BASE_URL || "https://api.prembly.com").replace(/;\s*$/, ""),
+
+  // OpenAI for chatbot casual conversation
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 };

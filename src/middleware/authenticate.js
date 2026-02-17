@@ -38,6 +38,28 @@ export const authenticate = async (req, res, next) => {
 };
 
 
+/** Optional auth: attaches user to req if valid token present; does not reject when absent */
+export const optionalAuthenticate = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization;
+    if (!header?.startsWith("Bearer ")) {
+      req.user = null;
+      return next();
+    }
+    const token = header.split(" ")[1];
+    const payload = verifyAccessToken(token);
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, kycStatus: true, isActive: true, isOnline: true, availabilityStatus: true, maxActiveOrders: true },
+    });
+    req.user = user && user.isActive ? user : null;
+    next();
+  } catch {
+    req.user = null;
+    next();
+  }
+};
+
 export const requireAdmin = (req, res, next) => {
   if (!req.user || req.user.role !== "ADMIN") {
     return res.status(StatusCodes.FORBIDDEN).json({
